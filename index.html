@@ -22,7 +22,7 @@
   <main class="content">
     <header class="topbar">
       <div class="search">⌕ <input id="searchInput" placeholder="Търсене..."></div>
-      <div class="top-actions"><button class="icon-btn">♢</button><button class="icon-btn">▣</button><div class="user"><div class="avatar">Г</div><div><b>Галин</b><small>FinanceBook Pro</small></div></div></div>
+      <div class="top-actions"><button class="icon-btn">♢</button><button class="icon-btn">▣</button><button class="user user-btn" id="profileBtn" title="Профил"><div class="avatar" id="avatarText">Г</div><div><b id="profileNameTop">Галин</b><small id="profilePlanTop">FinanceBook Pro</small></div></button></div>
     </header>
 
     <section id="view"></section>
@@ -31,6 +31,7 @@
 
 <div class="mobile-nav" id="mobileNav"></div>
 <div class="toast" id="toast"></div>
+<dialog id="formDialog" class="form-dialog"><form method="dialog" id="entityForm"><div class="dialog-head"><h3 id="dialogTitle">Добави</h3><button value="cancel" class="close-btn">×</button></div><div id="formFields" class="form-grid"></div><div class="dialog-actions"><button value="cancel" class="secondary">Отказ</button><button type="submit" value="default" class="primary">Запази</button></div></form></dialog>
 
 <template id="dashboardTemplate">
   <div class="page-head"><div><h1>Добре дошъл 👋</h1><p>Преглед на личните финанси</p></div><select><option>Изглед: Месец</option></select></div>

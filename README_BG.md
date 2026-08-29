@@ -1,14 +1,22 @@
-# FinanceBook Web 1.0 MVP
+# FinanceBook Web 1.1
 
-Работеща responsive уеб версия в стила на FinanceBook Pro.
+Актуализирана уеб версия на FinanceBook Pro.
+
+## Какво е добавено
+- поправен и работещ профил от горния десен ъгъл;
+- редактиране на профила;
+- CRUD за сметки, операции и задължения;
+- планиране: бюджети, месечни плащания, битови сметки, „Дължат ми“, спестовни цели и планирани приходи;
+- финансов календар;
+- разширена статистика;
+- JSON backup/restore и CSV export;
+- privacy mode, стотинки, compact mode, dark/light theme;
+- миграция на старите localStorage данни от Web 1.0.
 
 ## Стартиране локално
-В папката пуснете:
+В папката изпълнете:
 `python -m http.server 8080`
 и отворете `http://localhost:8080`.
 
-## GitHub Pages
-Качете съдържанието в отделно публично repository `financebook-pro-web` и включете Settings > Pages > Deploy from a branch > main > /(root).
-
-## В момента
-Сайтът работи с localStorage demo storage, за да може да се тества веднага. `js/firebase-config.example.js` и документите в `/docs` описват следващата стъпка за реалната връзка с Android.
+## Връзка с Android приложението
+Тази версия използва localStorage и е напълно работеща локално. Истинската двупосочна синхронизация между сайта и Android изисква общ backend (напр. Firebase Auth + Firestore) и един и същ потребителски акаунт. Документите в `/docs` остават като план за тази стъпка.
