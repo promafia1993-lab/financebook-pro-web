@@ -1,4 +1,4 @@
-import {store} from './sync.js';
+import {store,auth} from './sync.js';
 const navItems=[
  ['dashboard','⌂','Табло'],['accounts','▣','Сметки'],['transactions','◉','Операции'],['debts','▤','Задължения'],
  ['planning','◔','Планиране'],['calendar','▦','Календар'],['statistics','◕','Статистика'],['backup','☁','Backup'],['settings','⚙','Настройки']
@@ -93,11 +93,25 @@ function statisticsPage(){
  qs('#view').innerHTML=`<div class="page">${pageHead('Статистика','Финансов обзор и основни показатели')}<div class="stats-kpis"><div class="mini-card"><span>Приходи</span><strong class="income">${money(income)}</strong></div><div class="mini-card"><span>Разходи</span><strong class="expense">${money(expense)}</strong></div><div class="mini-card"><span>Нетно състояние</span><strong>${money(net)}</strong></div><div class="mini-card"><span>Оставащи кредити</span><strong>${money(debt)}</strong></div></div><div class="panel"><h3>6-месечна динамика</h3><canvas id="statsCanvas" width="1000" height="360"></canvas></div></div>`;drawChart();
 }
 function profilePage(){
- const p=data.profile;qs('#view').innerHTML=`<div class="page profile-page">${pageHead('Моят профил','Профилът вече се отваря и може да се редактира')}<div class="profile-grid"><div class="profile-card"><div class="profile-avatar">${esc((p.name||'П').charAt(0).toUpperCase())}</div><h2>${esc(p.name||'Потребител')}</h2><p>${esc(p.plan||'FinanceBook Pro')}</p><button class="primary" id="editProfile">Редактирай профила</button></div><div class="panel profile-details"><h3>Данни</h3><div class="detail-row"><span>Име</span><b>${esc(p.name||'—')}</b></div><div class="detail-row"><span>Имейл</span><b>${esc(p.email||'Не е зададен')}</b></div><div class="detail-row"><span>Език</span><b>${esc(p.language||'bg')}</b></div><div class="detail-row"><span>Валута</span><b>${esc(p.currency||'EUR')}</b></div><div class="detail-row"><span>Синхронизация</span><b>Локален режим</b></div></div></div></div>`;qs('#editProfile').onclick=editProfile;
+ const p=data.profile,u=auth.currentUser(),isAdmin=u?.role==='admin';
+ qs('#view').innerHTML=`<div class="page profile-page">${pageHead('Моят профил','Управление на лични данни, сигурност и профил')}<div class="profile-grid"><div class="profile-card"><div class="profile-avatar">${esc((p.name||'П').charAt(0).toUpperCase())}</div><h2>${esc(p.name||'Потребител')}</h2><p>${esc(p.plan||'FinanceBook Pro')}</p><div class="role-badge ${isAdmin?'admin':''}">${isAdmin?'Администратор':'Потребител'}</div><button class="primary full-btn" id="editProfile">Редактирай профила</button><button class="secondary full-btn" id="logoutBtn">Изход</button><button class="secondary full-btn" id="newAccountBtn">Регистрация на нов профил</button></div><div class="profile-stack"><div class="panel profile-details"><h3>Лични данни</h3><div class="detail-row"><span>Име</span><b>${esc(p.name||'—')}</b></div><div class="detail-row"><span>Имейл</span><b>${esc(p.email||'Не е зададен')}</b></div><div class="detail-row"><span>Телефон</span><b>${esc(p.phone||'Не е зададен')}</b></div><div class="detail-row"><span>Държава</span><b>${esc(p.country||'Не е зададена')}</b></div><div class="detail-row"><span>Град</span><b>${esc(p.city||'Не е зададен')}</b></div><div class="detail-row"><span>Език</span><b>${esc(p.language||'bg')}</b></div><div class="detail-row"><span>Валута</span><b>${esc(p.currency||'EUR')}</b></div></div><div class="panel profile-details"><h3>Сигурност</h3><p class="muted">Промени паролата за вход в този профил.</p><button class="primary" id="changePasswordBtn">Смени парола</button></div><div class="panel profile-details ${isAdmin?'admin-protected':'danger-panel'}"><h3>${isAdmin?'Защита на администраторския профил':'Изтриване на профил'}</h3>${isAdmin?'<p class="muted">Администраторският профил е защитен и няма функция за изтриване.</p>':'<p class="muted">Изтрива профила и локалните му финансови данни от този браузър. Действието е необратимо.</p><button class="danger" id="deleteProfileBtn">Изтрий профила</button>'}</div></div></div></div>`;
+ qs('#editProfile').onclick=editProfile;qs('#logoutBtn').onclick=logoutProfile;qs('#newAccountBtn').onclick=()=>showAuth('register');qs('#changePasswordBtn').onclick=changePassword;
+ if(!isAdmin)qs('#deleteProfileBtn').onclick=deleteProfile;
 }
 function editProfile(){
- const fields=[['name','Име','text'],['email','Имейл','email'],['plan','План','text'],['language','Език','text'],['currency','Валута','text']];openObjectForm('profile',fields);
+ const fields=[['name','Име','text'],['email','Имейл','email'],['phone','Телефон','text'],['country','Държава','text'],['city','Град','text'],['plan','План','text'],['language','Език','text'],['currency','Валута','text']];
+ showDialog('Редактиране на профил',fields,data.profile||{},vals=>{try{auth.updateProfile({name:vals.name,email:vals.email,phone:vals.phone,country:vals.country,city:vals.city});store.setObject('profile',vals);toast('Профилът е обновен')}catch(e){toast(e.message)}});
 }
+function changePassword(){
+ const fields=[['oldPassword','Текуща парола','password'],['newPassword','Нова парола','password'],['newPassword2','Повтори новата парола','password']];
+ showDialog('Смяна на парола',fields,{},async vals=>{if(vals.newPassword!==vals.newPassword2)return toast('Новите пароли не съвпадат');try{await auth.changePassword(vals.oldPassword,vals.newPassword);toast('Паролата е сменена')}catch(e){toast(e.message)}});
+}
+async function deleteProfile(){
+ const password=prompt('За изтриване въведи паролата на профила:');if(password===null)return;
+ if(!confirm('Сигурен ли си? Профилът и локалните му данни ще бъдат изтрити необратимо.'))return;
+ try{await auth.deleteCurrent(password);store.clearSession();data=null;showAuth('login');toast('Профилът е изтрит')}catch(e){toast(e.message)}
+}
+function logoutProfile(){auth.logout();store.clearSession();data=null;showAuth('login')}
 function backupPage(){
  qs('#view').innerHTML=`<div class="page">${pageHead('Backup и данни','JSON архив, възстановяване и CSV export')}<div class="settings-grid"><div class="panel"><h3>JSON backup</h3><p>Изтегля пълно локално копие на данните от сайта.</p><button class="primary" id="exportJson">Изтегли backup</button></div><div class="panel"><h3>Възстановяване</h3><p>Избери JSON backup от FinanceBook Web.</p><input type="file" id="importJson" accept="application/json"><button class="primary" id="restoreBtn">Възстанови</button></div><div class="panel"><h3>CSV операции</h3><p>Експортира всички операции във CSV.</p><button class="primary" id="exportCsv">Изтегли CSV</button></div><div class="panel danger-panel"><h3>Нулиране</h3><p>Връща демо данните.</p><button class="danger" id="resetBtn">Нулирай данните</button></div></div></div>`;
  qs('#exportJson').onclick=exportJson;qs('#exportCsv').onclick=exportCsv;qs('#restoreBtn').onclick=restoreJson;qs('#resetBtn').onclick=()=>{if(confirm('Да се нулират ли локалните данни?')){store.reset();toast('Данните са нулирани')}};
@@ -118,5 +132,14 @@ function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.
 async function restoreJson(){const f=qs('#importJson').files[0];if(!f)return toast('Избери JSON файл');try{const obj=JSON.parse(await f.text());store.replaceAll(obj);toast('Backup-ът е възстановен')}catch(e){toast('Невалиден backup файл')}}
 function drawChart(){const c=qs('#statsCanvas');if(!c)return;const ctx=c.getContext('2d'),w=c.width,h=c.height,vals=[31,55,42,70,61,88,76,100];ctx.clearRect(0,0,w,h);ctx.strokeStyle='#4a8cff';ctx.lineWidth=5;ctx.beginPath();vals.forEach((v,i)=>{const x=20+i*(w-40)/(vals.length-1),y=h-20-v*(h-50)/110;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();ctx.fillStyle='#7890a7';ctx.font='18px Segoe UI';ctx.fillText('Динамика на наличността',20,28)}
 qs('#profileBtn').onclick=()=>go('profile');qs('#searchInput').addEventListener('input',e=>{searchTerm=e.target.value.trim().toLowerCase();if(['accounts','transactions','debts'].includes(current))render()});
-store.init().then(d=>{data=d;nav();render();store.onChange(d=>{data=d;render()})});
+function showAuth(mode='login'){
+ const o=qs('#authOverlay');o.classList.remove('hidden');
+ const login=mode==='login';qs('#loginForm').classList.toggle('hidden',!login);qs('#registerForm').classList.toggle('hidden',login);qs('#loginTab').classList.toggle('active',login);qs('#registerTab').classList.toggle('active',!login);qs('#authError').textContent='';
+}
+function hideAuth(){qs('#authOverlay').classList.add('hidden')}
+async function activateCurrentUser(){const u=auth.currentUser();if(!u)return showAuth('login');data=store.loadForUser(u);hideAuth();current='dashboard';nav();render()}
+qs('#loginTab').onclick=()=>showAuth('login');qs('#registerTab').onclick=()=>showAuth('register');
+qs('#loginForm').onsubmit=async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.currentTarget).entries());try{await auth.login(v.email,v.password);await activateCurrentUser();toast('Успешен вход')}catch(err){qs('#authError').textContent=err.message}};
+qs('#registerForm').onsubmit=async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.currentTarget).entries());if(v.password!==v.password2){qs('#authError').textContent='Паролите не съвпадат.';return}try{await auth.register(v);await activateCurrentUser();e.currentTarget.reset();toast('Профилът е създаден')}catch(err){qs('#authError').textContent=err.message}};
+store.init().then(d=>{data=d;store.onChange(d=>{data=d;if(d)render()});if(auth.currentUser()){nav();render();hideAuth()}else showAuth('login')});
 if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}

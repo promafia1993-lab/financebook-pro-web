@@ -31,6 +31,29 @@
 
 <div class="mobile-nav" id="mobileNav"></div>
 <div class="toast" id="toast"></div>
+
+<div class="auth-overlay hidden" id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-brand"><img src="assets/financebook_icon.png"><div><strong>FinanceBook Pro</strong><span>Сигурен достъп до личните финанси</span></div></div>
+    <div class="auth-tabs"><button class="active" id="loginTab" type="button">Вход</button><button id="registerTab" type="button">Регистрация</button></div>
+    <form id="loginForm" class="auth-form">
+      <label>Имейл или admin<input name="email" autocomplete="username" required placeholder="name@example.com"></label>
+      <label>Парола<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit">Вход</button>
+      <p class="auth-hint">При първото обновяване администраторът може да влезе с <b>admin</b>. След вход смени паролата от Профил → Сигурност.</p>
+    </form>
+    <form id="registerForm" class="auth-form hidden">
+      <div class="auth-two"><label>Име<input name="name" required></label><label>Имейл<input name="email" type="email" required></label></div>
+      <div class="auth-two"><label>Телефон<input name="phone" type="tel"></label><label>Държава<input name="country" value="България"></label></div>
+      <label>Град<input name="city"></label>
+      <label>Парола<input name="password" type="password" minlength="6" required></label>
+      <label>Повтори паролата<input name="password2" type="password" minlength="6" required></label>
+      <label class="auth-check"><input name="terms" type="checkbox" required> Приемам условията за използване и политиката за поверителност.</label>
+      <button class="primary" type="submit">Създай профил</button>
+    </form>
+    <div class="auth-error" id="authError"></div>
+  </div>
+</div>
 <dialog id="formDialog" class="form-dialog"><form method="dialog" id="entityForm"><div class="dialog-head"><h3 id="dialogTitle">Добави</h3><button value="cancel" class="close-btn">×</button></div><div id="formFields" class="form-grid"></div><div class="dialog-actions"><button value="cancel" class="secondary">Отказ</button><button type="submit" value="default" class="primary">Запази</button></div></form></dialog>
 
 <template id="dashboardTemplate">
