@@ -1,14 +1,23 @@
-# FinanceBook Pro Web 1.3 — Firebase Authentication
+# FinanceBook Pro Web 1.4 — Firebase Auth + Cloud Firestore
 
-Версия 1.3 заменя локалната регистрация с реална Firebase Authentication, когато е добавен Web Firebase config.
+Тази актуализация надгражда Web 1.3 с реална облачна синхронизация.
 
-Нови функции: Firebase регистрация, вход/изход, забравена парола, редактиране на профил, смяна на парола, изтриване на потребителски акаунт и защита на администраторския акаунт от изтриване.
+Ново:
+- Firebase Email/Password регистрация и вход;
+- един UID за Web и Android;
+- Cloud Firestore двупосочна синхронизация в реално време;
+- offline-first локален cache;
+- автоматично качване на локалните данни при първа cloud синхронизация;
+- статус „Свързване / Записване / Синхронизирано / Офлайн / Грешка“;
+- бутон „Синхронизирай сега“;
+- cloud данните се изтриват при изтриване на обикновен потребител;
+- администраторският профил остава без изтриване.
 
-## Инсталация
-1. Качи всички файлове върху текущите файлове в GitHub repository.
-2. От Firebase Console вземи Web app config и го постави в `js/firebase-config.js`.
-3. В `adminEmails` добави имейла на администраторския профил.
-4. Commit промените и изчакай GitHub Pages deployment.
-5. Направи Ctrl+F5 веднъж.
+## Преди публикуване
+1. Попълни точния Web config в `js/firebase-config.js`.
+2. Firebase Authentication → Email/Password трябва да е Enabled.
+3. Създай Cloud Firestore.
+4. Добави правилата от `docs/FIRESTORE_SETUP_BG.md`.
+5. Добави реалния администраторски имейл в `adminEmails`.
 
-Подробности: `docs/FIREBASE_AUTH_SETUP_BG.md`.
+След качване в GitHub Pages направи Ctrl+F5 веднъж.
