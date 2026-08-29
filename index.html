@@ -40,7 +40,8 @@
       <label>Имейл или admin<input name="email" autocomplete="username" required placeholder="name@example.com"></label>
       <label>Парола<input name="password" type="password" autocomplete="current-password" required></label>
       <button class="primary" type="submit">Вход</button>
-      <p class="auth-hint">При първото обновяване администраторът може да влезе с <b>admin</b>. След вход смени паролата от Профил → Сигурност.</p>
+      <button class="link-btn" id="forgotPasswordBtn" type="button">Забравена парола?</button>
+      <p class="auth-hint" id="authModeHint">Свързване с Firebase…</p>
     </form>
     <form id="registerForm" class="auth-form hidden">
       <div class="auth-two"><label>Име<input name="name" required></label><label>Имейл<input name="email" type="email" required></label></div>
