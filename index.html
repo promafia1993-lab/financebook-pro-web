@@ -22,7 +22,7 @@
   <main class="content">
     <header class="topbar">
       <div class="search">⌕ <input id="searchInput" placeholder="Търсене..."></div>
-      <div class="top-actions"><button class="icon-btn">♢</button><button class="icon-btn">▣</button><button class="user user-btn" id="profileBtn" title="Профил"><div class="avatar" id="avatarText">Г</div><div><b id="profileNameTop">Галин</b><small id="profilePlanTop">FinanceBook Pro</small></div></button></div>
+      <div class="top-actions"><button class="icon-btn" title="Сигнали" onclick="go('alerts')">♢</button><button class="icon-btn" title="Календар" onclick="go('calendar')">▣</button><div class="profile-anchor"><button class="user user-btn" id="profileBtn" title="Профил"><div class="avatar" id="avatarText">Г</div><div><b id="profileNameTop">Галин</b><small id="profilePlanTop">FinanceBook Pro</small></div><span class="profile-chevron">⌄</span></button><div class="profile-menu hidden" id="profileMenu"></div></div></div>
     </header>
 
     <section id="view"></section>
@@ -60,6 +60,10 @@
 <template id="dashboardTemplate">
   <div class="page-head"><div><h1>Добре дошъл 👋</h1><p>Преглед на личните финанси</p></div><select><option>Изглед: Месец</option></select></div>
   <div class="kpi-grid" id="kpis"></div>
+  <div class="quick-actions">
+    <button data-go="transactions">＋ Операция</button><button id="dashTransfer">⇄ Трансфер</button><button data-go="accounts">▣ Сметка</button>
+    <button data-go="planning">⌂ Битова / План</button><button data-go="planning">◎ Цел</button><button data-go="forecast">↗ Прогноза</button><button data-go="insights">✦ Анализ</button>
+  </div>
   <div class="dashboard-grid">
     <div class="panel"><div class="panel-head"><h3>Моите сметки</h3><button data-go="accounts">Всички сметки</button></div><div id="accountsMini"></div></div>
     <div class="panel"><div class="panel-head"><h3>Последни операции</h3><button data-go="transactions">Всички</button></div><div id="transactionsMini"></div></div>
