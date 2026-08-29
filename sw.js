@@ -1,7 +1,7 @@
-const CACHE='financebook-pro-web-v2.0.2';
+const CACHE='financebook-pro-web-v2.1.0';
 const ASSETS=[
   './','./index.html','./styles.css','./manifest.webmanifest','./assets/financebook_icon.png',
-  './js/app-v202.js?v=202','./js/data.js','./js/sync-v202.js?v=202','./js/firebase-config.js'
+  './js/app-v203.js?v=202','./js/data.js','./js/sync-v203.js?v=202','./js/firebase-config.js'
 ];
 self.addEventListener('install',e=>{
   self.skipWaiting();
