@@ -1,18 +1,16 @@
 // FinanceBook Pro Web — Firebase configuration
-// ВАЖНО: постави тук точния Web app config от Firebase Console:
-// Project settings → Your apps → Web app → SDK setup and configuration → Config.
-// Не използвай Android appId вместо Web appId.
+// This configuration identifies the public Firebase Web app. Access to user
+// finance data is protected by Firebase Authentication + Firestore Rules.
 export const firebaseConfig = {
-  apiKey: "PASTE_WEB_API_KEY",
+  apiKey: "AIzaSyAyg27f38LrAogsBNdWVN2lGLzQ9muNDRE",
   authDomain: "financebook-pro.firebaseapp.com",
   projectId: "financebook-pro",
   storageBucket: "financebook-pro.firebasestorage.app",
   messagingSenderId: "930700048256",
-  appId: "PASTE_WEB_APP_ID"
+  appId: "1:930700048256:web:d273238d66f05e85943365",
+  measurementId: "G-SXJMZ2Q32F"
 };
 
-// Добави имейла/имейлите на администраторите тук.
-// За тези акаунти бутонът „Изтрий профила“ НЯМА да се показва.
-export const adminEmails = [
-  "PASTE_ADMIN_EMAIL"
-];
+// Optional administrator e-mails. Keep empty unless an account should be
+// protected from self-deletion in the Web UI.
+export const adminEmails = [];

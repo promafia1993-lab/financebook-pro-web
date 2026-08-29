@@ -1,4 +1,4 @@
-# FinanceBook Pro Web 1.4 — Firebase Auth + Cloud Firestore
+# FinanceBook Pro Web 1.5 — Firebase Auth + Cloud Firestore
 
 Тази актуализация надгражда Web 1.3 с реална облачна синхронизация.
 
@@ -14,7 +14,7 @@
 - администраторският профил остава без изтриване.
 
 ## Преди публикуване
-1. Попълни точния Web config в `js/firebase-config.js`.
+1. Web Firebase config вече е попълнен за проекта `financebook-pro`.
 2. Firebase Authentication → Email/Password трябва да е Enabled.
 3. Създай Cloud Firestore.
 4. Добави правилата от `docs/FIRESTORE_SETUP_BG.md`.
