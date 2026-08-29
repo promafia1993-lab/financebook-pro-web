@@ -1,4 +1,4 @@
-const CACHE='financebook-pro-web-v1.4.0';
+const CACHE='financebook-pro-web-v1.6.0';
 const ASSETS=['./','./index.html','./styles.css','./manifest.webmanifest','./assets/financebook_icon.png','./js/app.js','./js/data.js','./js/sync.js','./js/firebase-config.js'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});

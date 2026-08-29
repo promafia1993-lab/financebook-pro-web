@@ -42,5 +42,7 @@ export const demoData = {
   plannedIncome:[
     {id:'p1',name:'Заплата',amount:2800,date:'2026-09-27',status:'planned'}
   ],
+  familyMembers:[],
+  monthClosures:[],
   settings:{theme:'dark',privacy:false,showCents:true,compact:false,glass:true,confirmDelete:true,backgroundDim:55}
 };

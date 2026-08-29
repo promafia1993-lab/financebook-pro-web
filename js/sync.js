@@ -11,7 +11,7 @@ const clone=x=>JSON.parse(JSON.stringify(x));
 const normEmail=x=>String(x||'').trim().toLowerCase();
 
 function emptyData(profile={}){
-  return {profile:{name:'',email:'',plan:'FinanceBook Pro',language:'bg',currency:'EUR',...profile},accounts:[],transactions:[],debts:[],receivables:[],budgets:[],recurring:[],bills:[],goals:[],plannedIncome:[],settings:{theme:'dark',privacy:false,showCents:true,compact:false,glass:true,confirmDelete:true,backgroundDim:55}};
+  return {profile:{name:'',email:'',plan:'FinanceBook Pro',language:'bg',currency:'EUR',...profile},accounts:[],transactions:[],debts:[],receivables:[],budgets:[],recurring:[],bills:[],goals:[],plannedIncome:[],familyMembers:[],monthClosures:[],settings:{theme:'dark',privacy:false,showCents:true,compact:false,glass:true,confirmDelete:true,backgroundDim:55}};
 }
 function firebaseConfigured(){
   const c=firebaseConfig||{};
