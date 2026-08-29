@@ -1,0 +1,1 @@
+const CACHE='financebook-web-v1';const ASSETS=['./','./index.html','./styles.css','./js/app.js','./js/data.js','./js/sync.js','./assets/financebook_icon.png'];self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));
