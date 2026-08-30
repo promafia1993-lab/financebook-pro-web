@@ -1,0 +1,405 @@
+import {store,auth} from './sync-v221.js?v=221';
+import {demoData} from './data.js';
+
+const EXPENSE_CATEGORIES=['Храна','Гориво','Дом','Сметки','Кредити','Дете','Здраве','Транспорт','Забавления','Дрехи','Образование','Пътуване','Подаръци','Такси','Автомобил','Работа','Абонаменти','Лични','Домашни любимци','Други'];
+const INCOME_CATEGORIES=['Заплата','Командировъчни','Бонус','Пенсия','Продажба','Възстановяване','Допълнителен доход','Други'];
+const ALL_CATEGORIES=[...new Set([...EXPENSE_CATEGORIES,...INCOME_CATEGORIES])];
+const BULGARIAN_BANKS=['Банка ДСК АД','УниКредит Булбанк АД','Юробанк България АД (Пощенска банка)','Обединена българска банка АД (ОББ)','Инвестбанк АД','Първа инвестиционна банка АД (Fibank)','Тексим Банк АД','Централна кооперативна банка АД (ЦКБ)','Алианц Банк България АД','Българо-американска кредитна банка АД (БАКБ)','Ти Би Ай Банк ЕАД (tbi bank)','ПроКредит Банк (България) ЕАД','Интернешънъл Асет Банк АД','Търговска банка Д АД (D Bank)','Българска банка за развитие ЕАД (ББР)','Токуда Банк ЕАД','Общинска банка АД','ИНГ Банк Н.В. – клон София','Ситибанк Европа АД – клон България','БНП Париба С.А. – клон София','Аскори Банк АГ – клон София','Те-Дже Зираат Банкасъ – клон София','Бигбанк АС – клон България','Друга банка / институция'];
+const optionString=(items)=>items.map(v=>`${v}|${v}`).join(';');
+const navGroups=[
+ ['Основни',[
+  ['dashboard','⌂','Табло'],['accounts','▣','Сметки'],['transactions','◉','Операции'],['debts','▤','Задължения'],['planning','◔','План']
+ ]],
+ ['Инструменти',[
+  ['calendar','▦','Календар'],['quick','⚡','Бързи разходи'],['alerts','⚠','Сигнали'],['forecast','↗','Прогноза'],
+  ['family','♙','Семеен бюджет'],['calculator','∑','Кредитен калкулатор'],['insights','✦','Умен анализ']
+ ]],
+ ['Анализи и данни',[
+  ['statistics','◕','Статистика'],['reports','▧','Отчети'],['monthclose','✓','Приключване на месец'],
+  ['backup','☁','Backup'],['diagnostics','⌁','Диагностика']
+ ]],
+ ['Профил и настройки',[
+  ['profile','●','Профил'],['language','文','Език'],['privacy','◉','Поверителност'],['settings','⚙','Настройки']
+ ]]
+];
+const navItems=navGroups.flatMap(g=>g[1]);
+let current='dashboard',data=JSON.parse(JSON.stringify(demoData)),searchTerm='';
+const qs=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const money=n=>{
+ const v=Number(n||0); if(data?.settings?.privacy)return '•••• €';
+ return new Intl.NumberFormat('bg-BG',{minimumFractionDigits:data?.settings?.showCents===false?0:2,maximumFractionDigits:data?.settings?.showCents===false?0:2}).format(v)+' €';
+};
+function applySettings(){
+ if(!data)return;
+ document.documentElement.dataset.theme=data.settings.theme||'dark';
+ document.documentElement.dataset.style=String(data.settings.styleIndex||0);
+ document.body.classList.toggle('compact',!!data.settings.compact);
+ document.body.classList.toggle('no-glass',data.settings.glass===false);
+ document.documentElement.style.setProperty('--panel-opacity',String(Math.max(.35,Math.min(1,Number(data.settings.panelOpacity??92)/100))));
+ document.documentElement.style.setProperty('--bg-dim',String(Math.max(0,Math.min(.85,Number(data.settings.backgroundDim??55)/100))));
+ qs('#profileNameTop').textContent=data.profile.name||'Профил'; qs('#profilePlanTop').textContent=data.profile.plan||'FinanceBook Pro';
+ qs('#avatarText').textContent=(data.profile.name||'П').trim().charAt(0).toUpperCase();
+}
+function nav(){
+ const side=qs('#mainNav'),mobile=qs('#mobileNav');side.innerHTML='';mobile.innerHTML='';
+ navGroups.forEach(([group,items])=>{
+   const h=document.createElement('div');h.className='nav-group-title';h.textContent=group;side.appendChild(h);
+   items.forEach(([id,ico,label])=>{const b=document.createElement('button');b.className='nav-btn'+(id===current?' active':'');b.innerHTML=`<span class="nav-ico">${ico}</span>${label}`;b.onclick=()=>go(id);side.appendChild(b)})
+ });
+ navItems.slice(0,5).forEach(([id,ico,label])=>{const m=document.createElement('button');m.className='mobile-btn'+(id===current?' active':'');m.innerHTML=`<span class="nav-ico">${ico}</span>${label}`;m.onclick=()=>go(id);mobile.appendChild(m)});
+}
+function go(id){current=id;nav();render()}; window.go=go;
+function toast(t){const e=qs('#toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1900)}
+function pageHead(title,sub='',addLabel=''){return `<div class="page-title"><div><h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div>${addLabel?`<button class="primary" id="addBtn">+ ${addLabel}</button>`:''}</div>`}
+function render(){applySettings();closeProfileMenu();if(current==='dashboard')return dashboard(); if(current==='debts')return debtsPage(); if(current==='profile')return profilePage(); if(current==='privacy')return privacyPage(); if(current==='planning')return planningPage(); if(current==='calendar')return calendarPage(); if(current==='quick')return quickExpensesPage(); if(current==='alerts')return alertsPage(); if(current==='forecast')return forecastPage(); if(current==='family')return familyBudgetPage(); if(current==='calculator')return loanCalculatorPage(); if(current==='insights')return insightsPage(); if(current==='statistics')return statisticsPage(); if(current==='reports')return reportsPage(); if(current==='monthclose')return monthClosePage(); if(current==='backup')return backupPage(); if(current==='diagnostics')return diagnosticsPage(); if(current==='language')return languagePage(); if(current==='settings')return settingsPage(); return collectionPage(current)}
+function dashboard(){
+ const t=qs('#dashboardTemplate').content.cloneNode(true),v=qs('#view');v.innerHTML='';v.appendChild(t);
+ const debtList=effectiveDebts();
+ const total=data.accounts.filter(a=>a.netWorth!==false).reduce((s,a)=>s+Number(a.balance||0),0),income=data.transactions.filter(x=>x.amount>0).reduce((s,x)=>s+Number(x.amount),0),expenses=-data.transactions.filter(x=>x.amount<0).reduce((s,x)=>s+Number(x.amount),0),debts=debtList.filter(x=>!x.archived).reduce((s,x)=>s+Number(x.monthly||0),0);
+ const overdue=[...data.bills.filter(x=>!x.paid&&new Date(x.due)<new Date()),...debtList.filter(x=>!x.archived&&debtStatus(x).kind==='danger')].length;
+ const k=[['blue','Обща наличност',total,'Нетно състояние по активни сметки'],['purple','Месечни разходи',expenses,'Разходи за периода'],['orange','Предстоящи плащания',debts,`${overdue} просрочени позиции`],['green','Месечни приходи',income,'Приходи за периода']];
+ qs('#kpis').innerHTML=k.map(x=>`<div class="kpi ${x[0]}"><div class="label">${x[1]}</div><div class="value">${money(x[2])}</div><div class="trend">${x[3]}</div></div>`).join('');
+ qs('#accountsMini').innerHTML=data.accounts.slice(0,4).map(a=>row('▣',a.name,a.bank,a.balance)).join('');
+ qs('#transactionsMini').innerHTML=data.transactions.slice(0,5).map(x=>row(x.amount>0?'↙':'↗',x.title,x.category,x.amount)).join('');
+ qs('#debtsMini').innerHTML=debtList.filter(x=>!x.archived).slice(0,4).map(x=>row('▤',x.name,'Месечна вноска',-x.monthly)).join('');qs('#debtsTotal').textContent=money(debts);
+ qs('#budgetsMini').innerHTML=data.budgets.slice(0,4).map(b=>{const p=Math.min(100,Math.round(Number(b.spent)/Math.max(1,Number(b.limit))*100));return `<div class="budget-row"><div class="budget-top"><b>${esc(b.name)}</b><span>${p}%</span></div><div class="progress"><i style="width:${p}%"></i></div></div>`}).join('');
+ qs('#cardsMini').innerHTML=data.accounts.filter(a=>a.type==='card'||a.type==='creditCard').map(a=>row('▣',a.name,a.bank,a.balance)).join('');
+ document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));const dt=qs('#dashTransfer');if(dt)dt.onclick=accountTransfer;drawChart();
+}
+function row(ico,title,sub,amount){return `<div class="list-row"><div class="row-main"><div class="bubble">${ico}</div><div class="row-text"><b>${esc(title)}</b><span>${esc(sub)}</span></div></div><div class="amount ${amount>=0?'income':'expense'}">${amount>=0?'+ ':''}${money(amount)}</div></div>`}
+const schemas={
+ accounts:{title:'Сметки и портфейли',add:'Сметка',fields:[
+  ['name','Име','text'],['bank','Банка / институция','select',optionString(BULGARIAN_BANKS)],['balance','Свободен лимит / налично за харчене','number'],
+  ['type','Тип','select','bank|Банкова;cash|Кеш;card|Дебитна карта;creditCard|Кредитна карта;savings|Спестовна;other|Друга'],
+  ['creditLimit','Кредитен лимит','number'],['creditInterestRate','Лихва по карта %','number'],['minimumPayment','Минимална вноска','number'],
+  ['statementDay','Ден на извлечение','number'],['paymentDueDay','Падеж','number'],['note','Бележка','text']
+ ]},
+ transactions:{title:'Операции',add:'Операция',fields:[
+  ['title','Име','text'],['payee','Търговец / получател','text'],['category','Категория','select',optionString(ALL_CATEGORIES)],['tags','Тагове','text'],
+  ['amount','Сума (+ приход / - разход)','number'],['date','Дата','date'],['accountId','Сметка','accountSelect'],['note','Бележка','text']
+ ]},
+ debts:{title:'Задължения',add:'Кредит / задължение',fields:[
+  ['name','Име','text'],['institution','Банка / институция','select',optionString(BULGARIAN_BANKS)],['amount','Обща / оставаща сума','number'],['paidAmount','Погасено','number'],
+  ['monthly','Месечна вноска','number'],['apr','Лихва %','number'],['dueDay','Ден за падеж','number'],['due','Следващ падеж','date'],
+  ['debtType','Тип','select','consumerLoan|Потребителски кредит;mortgage|Ипотека;leasing|Лизинг;overdraft|Овърдрафт;creditCard|Кредитна карта;other|Друго'],
+  ['contractNumber','Договор №','text'],['startDate','Начална дата','date'],['maturityDate','Крайна дата','date'],['note','Бележка','text']
+ ]}
+};
+
+let debtTab='mine';
+function parseLocalDateValue(value){
+ const raw=String(value??'').trim();if(!raw)return null;
+ const d=/^\d{4}-\d{2}-\d{2}$/.test(raw)?new Date(raw+'T12:00:00'):new Date(raw);
+ return Number.isNaN(d.getTime())?null:d;
+}
+function dateOnlyIso(d){
+ const x=d instanceof Date?d:parseLocalDateValue(d);if(!x||Number.isNaN(x.getTime()))return '';
+ return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
+}
+function nextDueIso(rawDay,baseDate=new Date()){
+ const day=Math.max(1,Math.min(31,Number(rawDay||15)||15));
+ const make=(year,month)=>{const last=new Date(year,month+1,0).getDate();return new Date(year,month,Math.min(day,last),12,0,0,0)};
+ const today=new Date(baseDate.getFullYear(),baseDate.getMonth(),baseDate.getDate(),12,0,0,0);
+ let due=make(today.getFullYear(),today.getMonth());if(due<today)due=make(today.getFullYear(),today.getMonth()+1);
+ return dateOnlyIso(due);
+}
+function addMonthsIso(iso,months=1,dayHint=null){
+ const d=parseLocalDateValue(iso);
+ const base=d||new Date();
+ const day=Math.max(1,Math.min(31,Number(dayHint||base.getDate())||1));
+ const y=base.getFullYear(),m=base.getMonth()+months,last=new Date(y,m+1,0).getDate();
+ return dateOnlyIso(new Date(y,m,Math.min(day,last),12,0,0,0));
+}
+function cardAccountForDebt(debt){
+ return (data.accounts||[]).find(a=>a.type==='creditCard'&&(String(a.id)===String(debt.linkedAccountId??'')||String(a.linkedDebtId??'')===String(debt.id??'')))
+   ||(data.accounts||[]).find(a=>a.type==='creditCard'&&String(a.name||'').trim().toLowerCase()===String(debt.name||'').trim().toLowerCase());
+}
+function effectiveDebts(){
+ const list=(data.debts||[]).map(x=>({...x}));
+ for(const a of (data.accounts||[]).filter(x=>x.type==='creditCard')){
+   let d=list.find(x=>String(x.linkedAccountId??'')===String(a.id??'')||String(a.linkedDebtId??'')===String(x.id??''));
+   if(!d)d=list.find(x=>String(x.debtType||'')==='creditCard'&&String(x.name||'').trim().toLowerCase()===String(a.name||'').trim().toLowerCase());
+   const amount=Math.max(0,(Number(a.creditLimit||0)||0)-(Number(a.balance||0)||0));
+   if(!d){
+     d={id:a.linkedDebtId||`card-debt-${a.id}`,name:a.name||'Кредитна карта',institution:a.bank||'',amount,original:amount,paid:0,paidAmount:0,monthly:Number(a.minimumPayment||0),apr:Number(a.creditInterestRate||0),dueDay:Number(a.paymentDueDay||15),due:nextDueIso(a.paymentDueDay),debtType:'creditCard',linkedAccountId:a.id,archived:a.active===false,note:a.note||'',_synthetic:true};
+     list.unshift(d);
+   }else{
+     d.debtType='creditCard';d.linkedAccountId=a.id;d.amount=amount;d.original=amount;d.paid=0;d.paidAmount=0;d.monthly=Number(a.minimumPayment||0);d.apr=Number(a.creditInterestRate||0);d.dueDay=Number(a.paymentDueDay||15);d.due=String(d.due||'').trim()||nextDueIso(a.paymentDueDay);d.archived=a.active===false;d.institution=a.bank||d.institution||'';
+   }
+ }
+ const seen=new Set();
+ return list.filter(x=>{if(String(x.debtType||'')!=='creditCard'||x.linkedAccountId==null)return true;const k=String(x.linkedAccountId);if(seen.has(k))return false;seen.add(k);return true});
+}
+function paidThisMonthForDebt(debt){
+ const now=new Date();return (data.debtPayments||[]).filter(p=>String(p.debtId)===String(debt.id)).filter(p=>{const d=new Date(p.paidAt);return !Number.isNaN(d.getTime())&&d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()}).reduce((s,p)=>s+Number(p.amount||0),0);
+}
+function debtStatus(debt){
+ if(paidThisMonthForDebt(debt)>0.005)return {kind:'ok',label:''};
+ const raw=String(debt.due||'').trim();let due=parseLocalDateValue(raw);
+ if(!due)due=parseLocalDateValue(nextDueIso(debt.dueDay));
+ const today=new Date();const t=new Date(today.getFullYear(),today.getMonth(),today.getDate(),12,0,0,0);const days=Math.round((due-t)/86400000);
+ if(days<0)return {kind:'danger',label:'Просрочен падеж',days,due};
+ if(days<=7)return {kind:'warn',label:'Падеж в следващите 7 дни',days,due};
+ return {kind:'ok',label:'',days,due};
+}
+function debtTypeLabel(t){return ({consumerLoan:'Потребителски кредит',mortgage:'Ипотечен кредит',autoLoan:'Автомобилен кредит',leasing:'Лизинг',overdraft:'Овърдрафт',creditCard:'Кредитна карта',businessLoan:'Бизнес кредит',other:'Друго задължение'})[t]||'Кредит / задължение'}
+function debtMetric(label,value){return `<div class="debt-metric"><span>${esc(label)}</span><strong>${value}</strong></div>`}
+function debtSummaryMetric(icon,label,value){return `<div class="debt-summary-metric"><div class="debt-summary-icon">${icon}</div><span>${esc(label)}</span><strong>${value}</strong></div>`}
+function debtSectionTitle(icon,title,count){return `<div class="debt-section-title"><div><span class="debt-section-icon">${icon}</span><h2>${esc(title)}</h2></div><span class="debt-count">${count}</span></div>`}
+function debtCardHtml(x){
+ const account=cardAccountForDebt(x),isCard=String(x.debtType||'')==='creditCard'||!!account,amount=Math.max(0,Number(x.amount||0)),monthly=Number(x.monthly||0),apr=Number(x.apr||0),status=debtStatus(x);
+ const due=dateOnlyIso(x.due)||nextDueIso(x.dueDay);let details='';
+ if(isCard){
+   const limit=Number(account?.creditLimit||0),available=Math.max(0,Number(account?.balance||0)||0),util=limit>0?Math.min(100,amount/limit*100):0;
+   details=`<div class="debt-detail-grid">${debtMetric('Кредитен лимит',money(limit))}${debtMetric('Свободен лимит',money(available))}${debtMetric('Мин. вноска',money(monthly))}${debtMetric('Годишна лихва',apr.toFixed(2)+'%')}</div><div class="debt-progress"><i style="width:${util.toFixed(2)}%"></i></div><div class="debt-progress-label">Използван лимит: ${util.toFixed(1)}%</div>`;
+ }else{
+   const original=Math.max(amount,Number(x.original||x.amount||0)),paid=Math.max(0,Number(x.paidAmount??x.paid??Math.max(0,original-amount))),progress=original>0?Math.min(100,paid/original*100):0;
+   details=`<div class="debt-detail-grid">${debtMetric('Първоначално',money(original))}${debtMetric('Платено',money(paid))}${debtMetric('Месечна вноска',money(monthly))}${debtMetric('Годишна лихва',apr.toFixed(2)+'%')}</div><div class="debt-progress"><i style="width:${progress.toFixed(2)}%"></i></div><div class="debt-progress-label">Погасено: ${progress.toFixed(1)}%</div>`;
+ }
+ const chips=[`📅 Следващ падеж: ${due}`];
+ const last=(data.debtPayments||[]).filter(p=>String(p.debtId)===String(x.id)).sort((a,b)=>String(b.paidAt).localeCompare(String(a.paidAt)))[0];if(last)chips.push(`↻ Последна: ${String(last.paidAt).slice(0,10)}`);if(account)chips.push(`▧ Извлечение: ${Number(account.statementDay||1)}-во`);if(account)chips.push('🔗 Свързана със Сметки');if(x.contractNumber)chips.push(`📄 Договор: ${x.contractNumber}`);if(x.startDate)chips.push(`▶ Начало: ${String(x.startDate).slice(0,10)}`);if(x.maturityDate)chips.push(`⚑ Край: ${String(x.maturityDate).slice(0,10)}`);
+ if(!isCard&&monthly>0&&amount>0&&!x.maturityDate){const months=Math.ceil(amount/monthly);chips.push(`◷ ≈ ${months} месеца остават`)}
+ return `<article class="debt-card ${x.archived?'archived':''}" data-debt-card="${esc(x.id)}"><div class="debt-card-head"><div class="debt-card-title"><div class="debt-avatar">${isCard?'💳':'🏦'}</div><div><h3>${esc(x.name||'Задължение')}</h3><p>${esc(isCard?'Кредитна карта':debtTypeLabel(x.debtType))} • ${esc(x.institution||'Без посочена банка')}</p></div></div><div class="card-actions"><button data-debt-edit="${esc(x.id)}">✎</button><button data-debt-archive="${esc(x.id)}">${x.archived?'↩':'▣'}</button><button data-debt-delete="${esc(x.id)}">🗑</button></div></div>${status.label?`<div class="debt-status ${status.kind}">${status.kind==='danger'?'⚠':'◷'} ${esc(status.label)}</div>`:''}<div class="debt-big">${isCard?'Текущ дълг':'Остава за плащане'}: <strong>${money(amount)}</strong></div>${details}<div class="debt-chips">${chips.map(c=>`<span>${esc(c)}</span>`).join('')}</div>${x.note?`<p class="debt-note">${esc(x.note)}</p>`:''}<div class="debt-actions"><button class="secondary" data-debt-history="${esc(x.id)}">↻ История</button>${!x.archived&&amount>0.005?`<button class="primary" data-debt-pay="${esc(x.id)}">${isCard?'💳 Погаси карта':'€ Вноска'}</button>`:''}</div></article>`;
+}
+function debtsPage(){
+ const v=qs('#view');
+ if(debtTab==='receivables')return receivablesDebtTab(v);
+ const all=effectiveDebts().sort((a,b)=>(Number(!!a.archived)-Number(!!b.archived))||String(a.debtType||'').localeCompare(String(b.debtType||''))||Number(a.dueDay||1)-Number(b.dueDay||1));
+ const active=all.filter(x=>!x.archived&&Number(x.amount||0)>0.005),cards=active.filter(x=>String(x.debtType||'')==='creditCard'||!!cardAccountForDebt(x)),loans=active.filter(x=>!cards.includes(x)),completed=all.filter(x=>x.archived||Number(x.amount||0)<=0.005);
+ const loansRemaining=loans.reduce((s,x)=>s+Number(x.amount||0),0),cardRemaining=cards.reduce((s,x)=>s+Number(x.amount||0),0),totalRemaining=loansRemaining+cardRemaining,monthly=active.reduce((s,x)=>s+Number(x.monthly||0),0),paidMonth=(data.debtPayments||[]).filter(p=>{const d=new Date(p.paidAt);const n=new Date();return !Number.isNaN(d.getTime())&&d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()}).reduce((s,p)=>s+Number(p.amount||0),0);
+ const filtered=searchTerm?all.filter(x=>JSON.stringify(x).toLowerCase().includes(searchTerm)):all;
+ const fcards=cards.filter(x=>filtered.some(f=>String(f.id)===String(x.id))),floans=loans.filter(x=>filtered.some(f=>String(f.id)===String(x.id))),fcompleted=completed.filter(x=>filtered.some(f=>String(f.id)===String(x.id)));
+ v.innerHTML=`<div class="page debts-page"><div class="debt-tabs"><button class="debt-tab active" data-debt-tab="mine">🏦<span>Аз дължа</span></button><button class="debt-tab" data-debt-tab="receivables">▧<span>Дължат ми</span></button></div>${pageHead('Задължения','Кредити, кредитни карти, падежи и плащания')}<section class="debt-summary"><div class="debt-summary-head"><h2>Обобщение на задълженията</h2></div><button class="primary debt-add-wide" id="addBtn">+ Добави кредит / задължение</button><div class="debt-summary-grid">${debtSummaryMetric('▤','Активни',String(active.length))}${debtSummaryMetric('🏦','Кредити остават',money(loansRemaining))}${debtSummaryMetric('💳','Дълг по кредитни карти',money(cardRemaining))}${debtSummaryMetric('Σ','Общо задължения',money(totalRemaining))}${debtSummaryMetric('€','Месечни вноски',money(monthly))}${debtSummaryMetric('↻','Платено този месец',money(paidMonth))}<button class="secondary debt-calc-metric" id="debtCalcBtn">∑<span>Калкулатор</span></button></div><p class="debt-sync-hint">Кредитните карти се синхронизират със „Сметки“. Дългът по карта = кредитен лимит − свободен лимит. Останалите кредити се управляват директно тук.</p></section><div class="debt-content">${floans.length?debtSectionTitle('🏦','Кредити, лизинги и овърдрафти',floans.length)+floans.map(debtCardHtml).join(''):''}${fcards.length?debtSectionTitle('💳','Кредитни карти',fcards.length)+fcards.map(debtCardHtml).join(''):''}${fcompleted.length?debtSectionTitle('▣','Приключени / архив',fcompleted.length)+fcompleted.map(debtCardHtml).join(''):''}${all.length?'' : '<div class="empty">Няма задължения. Добави потребителски, ипотечен или автомобилен кредит, лизинг, овърдрафт или друго задължение.</div>'}</div></div>`;
+ qs('#addBtn').onclick=()=>openEntityForm('debts');qs('#debtCalcBtn').onclick=()=>go('calculator');v.querySelectorAll('[data-debt-tab]').forEach(b=>b.onclick=()=>{debtTab=b.dataset.debtTab;debtsPage()});
+ v.querySelectorAll('[data-debt-history]').forEach(b=>b.onclick=()=>debtHistory(b.dataset.debtHistory));v.querySelectorAll('[data-debt-pay]').forEach(b=>b.onclick=()=>recordDebtPayment(b.dataset.debtPay));
+ v.querySelectorAll('[data-debt-edit]').forEach(b=>b.onclick=()=>{const x=all.find(d=>String(d.id)===String(b.dataset.debtEdit)),a=x&&cardAccountForDebt(x);if(a)openEntityForm('accounts',a.id);else openEntityForm('debts',b.dataset.debtEdit)});
+ v.querySelectorAll('[data-debt-archive]').forEach(b=>b.onclick=()=>{const x=all.find(d=>String(d.id)===String(b.dataset.debtArchive)),a=x&&cardAccountForDebt(x);if(a)store.update('accounts',a.id,{active:a.active===false});else if(x&&!x._synthetic)store.update('debts',x.id,{archived:!x.archived})});
+ v.querySelectorAll('[data-debt-delete]').forEach(b=>b.onclick=()=>{const x=all.find(d=>String(d.id)===String(b.dataset.debtDelete)),a=x&&cardAccountForDebt(x);if(a){if(confirm(`Да се изтрие ли кредитната карта „${a.name}“ и свързаното задължение?`))store.remove('accounts',a.id)}else if(x&&!x._synthetic)removeItem('debts',x.id)});
+}
+function receivablesDebtTab(v=qs('#view')){
+ const items=[...(data.receivables||[])].sort((a,b)=>Number(!!a.settled)-Number(!!b.settled)||String(b.date||'').localeCompare(String(a.date||'')));const total=items.filter(x=>!x.settled).reduce((s,x)=>s+Math.max(0,Number(x.principal||0)-Number(x.received??x.paidAmount??0)),0);
+ v.innerHTML=`<div class="page debts-page"><div class="debt-tabs"><button class="debt-tab" data-debt-tab="mine">🏦<span>Аз дължа</span></button><button class="debt-tab active" data-debt-tab="receivables">▧<span>Дължат ми</span></button></div>${pageHead('Дължат ми','Вземания, лихви, срокове и частични плащания','Човек')}<section class="debt-summary receivable-summary"><div class="debt-summary-head"><div><h2>Общо трябва да получиш</h2><strong class="receivable-total">${money(total)}</strong></div></div></section><div class="receivable-debt-grid">${items.map(x=>{const principal=Number(x.principal||0),received=Number(x.received??x.paidAmount??0),out=Math.max(0,principal-received),interest=Number(x.interest??x.interestPercent??0);return `<article class="debt-card ${x.settled?'archived':''}"><div class="debt-card-head"><div class="debt-card-title"><div class="debt-avatar">${x.settled?'✓':'👤'}</div><div><h3>${esc(x.person||x.personName||'Човек')}</h3><p>${x.date?'От '+esc(String(x.date).slice(0,10)):''}${x.due?' • срок '+esc(String(x.due).slice(0,10)):''}</p></div></div><div class="card-actions"><button data-rec-edit="${x.id}">✎</button><button data-rec-del="${x.id}">🗑</button></div></div><div class="debt-big">Остава: <strong>${money(out)}</strong></div><div class="debt-detail-grid">${debtMetric('Главница',money(principal))}${debtMetric('Получено',money(received))}${debtMetric('Лихва',interest.toFixed(2)+'%')}${debtMetric('Статус',x.settled?'Платено':'Активно')}</div>${x.note?`<p class="debt-note">${esc(x.note)}</p>`:''}${!x.settled&&out>0?`<div class="debt-actions"><button class="primary" data-rec-receive="${x.id}">+ Получено</button></div>`:''}</article>`}).join('')||'<div class="empty">Никой не ти дължи пари.</div>'}</div></div>`;
+ qs('#addBtn').onclick=()=>openPlanForm('receivables');v.querySelectorAll('[data-debt-tab]').forEach(b=>b.onclick=()=>{debtTab=b.dataset.debtTab;debtsPage()});v.querySelectorAll('[data-rec-edit]').forEach(b=>b.onclick=()=>openPlanForm('receivables',b.dataset.recEdit));v.querySelectorAll('[data-rec-del]').forEach(b=>b.onclick=()=>removeItem('receivables',b.dataset.recDel));v.querySelectorAll('[data-rec-receive]').forEach(b=>b.onclick=()=>receiveMoney(b.dataset.recReceive));
+}
+function collectionPage(type){
+ const sc=schemas[type],v=qs('#view');let arr=data[type]||[]; if(searchTerm)arr=arr.filter(x=>JSON.stringify(x).toLowerCase().includes(searchTerm));
+ let html=`<div class="page">${pageHead(sc.title, type==='transactions'?'Приходи, разходи, филтри и редактиране':'Управление и редактиране',sc.add)}<div class="table-card">`;
+ if(type==='accounts')html+=`<div class="table-row header"><span>Име</span><span>Баланс</span><span>Детайли</span><span>Действия</span></div>`;
+ if(type==='transactions')html+=`<div class="table-row header"><span>Операция</span><span>Сума</span><span>Категория / дата</span><span>Действия</span></div>`;
+ if(type==='debts')html+=`<div class="table-row header"><span>Задължение</span><span>Остава</span><span>Вноска / падеж</span><span>Действия</span></div>`;
+ html+=arr.map(x=>{
+   let c='';if(type==='accounts'){const cardDebt=x.type==='creditCard'?Math.max(0,(Number(x.creditLimit||0)||0)-(Number(x.balance||0)||0)):null;c=`<b>${esc(x.name)}</b><span>${x.type==='creditCard'?money(x.balance)+' свободно':money(x.balance)}</span><span>${esc(x.bank||x.type)}${cardDebt==null?'':` • дълг ${money(cardDebt)}`}</span>`;}
+   if(type==='transactions')c=`<b>${esc(x.title)}</b><span class="${x.amount>=0?'income':'expense'}">${money(x.amount)}</span><span>${esc(x.category)} · ${esc(x.date)}</span>`;
+   if(type==='debts')c=`<b>${esc(x.name)}</b><span>${money(x.amount)}</span><span>${money(x.monthly)} · ${esc(x.due)}</span>`;
+   return `<div class="table-row">${c}<span class="row-actions"><button data-edit="${x.id}">✎</button><button data-del="${x.id}">🗑</button></span></div>`}).join('');
+ html+='</div></div>';v.innerHTML=html;qs('#addBtn').onclick=()=>openEntityForm(type);
+ const title=v.querySelector('.page-title');if(title&&type==='accounts'){const tools=document.createElement('div');tools.className='page-tools';tools.innerHTML='<button class="secondary" id="transferBtn">⇄ Трансфер</button>';title.appendChild(tools);qs('#transferBtn').onclick=accountTransfer}
+ if(title&&type==='transactions'){const tools=document.createElement('div');tools.className='page-tools';tools.innerHTML='<button class="secondary" id="quickGoBtn">⚡ Бърз разход</button><button class="secondary" id="reportGoBtn">▧ Отчети</button>';title.appendChild(tools);qs('#quickGoBtn').onclick=()=>go('quick');qs('#reportGoBtn').onclick=()=>go('reports')}
+ if(title&&type==='debts'){const tools=document.createElement('div');tools.className='page-tools';tools.innerHTML='<button class="secondary" id="calcGoBtn">∑ Калкулатор</button><button class="secondary" id="receivableGoBtn">⇢ Дължат ми</button>';title.appendChild(tools);qs('#calcGoBtn').onclick=()=>go('calculator');qs('#receivableGoBtn').onclick=()=>{go('planning');setTimeout(()=>{const b=[...document.querySelectorAll("[data-tab]")].find(x=>x.dataset.tab==="receivables");b?.click()},0)}}
+ v.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEntityForm(type,b.dataset.edit));v.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>removeItem(type,b.dataset.del));
+ if(type==='accounts'){v.querySelectorAll('.table-row:not(.header)').forEach((r,i)=>{const x=arr[i],a=r.querySelector('.row-actions');if(!x||!a)return;const main=document.createElement('button');main.textContent=String(data.settings.defaultAccountId||'')===String(x.id)?'★ Основна':'☆ Основна';main.onclick=()=>{store.setObject('settings',{defaultAccountId:x.id});toast('Основната сметка е сменена')};a.prepend(main)})}
+ if(type==='debts'){v.querySelectorAll('.table-row:not(.header)').forEach((r,i)=>{const x=arr[i];if(!x)return;const a=r.querySelector('.row-actions');if(a){const pay=document.createElement('button');pay.textContent='€ Вноска';pay.onclick=()=>recordDebtPayment(x.id);a.prepend(pay);const hist=document.createElement('button');hist.textContent='История';hist.onclick=()=>debtHistory(x.id);a.prepend(hist)}})}
+}
+function accountTransfer(){
+ const active=(data.accounts||[]).filter(a=>a.active!==false);if(active.length<2)return toast('Трябват поне две активни сметки.');
+ const opts=active.map(a=>`${a.id}: ${a.name}`).join('\n');const from=prompt('От коя сметка? Въведи ID:\n'+opts);if(!from)return;const to=prompt('Към коя сметка? Въведи ID:\n'+opts);if(!to||String(from)===String(to))return;
+ const amount=Number(prompt('Сума за трансфер:','0')||0);if(amount<=0)return;const a=active.find(x=>String(x.id)===String(from)),b=active.find(x=>String(x.id)===String(to));if(!a||!b)return toast('Невалидна сметка.');
+ store.update('accounts',a.id,{balance:Number(a.balance||0)-amount});store.update('accounts',b.id,{balance:Number(b.balance||0)+amount});
+ store.add('transactions',{title:`Трансфер: ${a.name} → ${b.name}`,category:'Трансфер',amount:0,date:new Date().toISOString().slice(0,10),note:`${money(amount)}`});toast('Трансферът е записан');
+}
+function recordDebtPayment(id){
+ const x=effectiveDebts().find(v=>String(v.id)===String(id));if(!x)return;
+ const requested=Number(prompt('Сума на вноската:',String(x.monthly||x.amount||0))||0);if(requested<=0)return;
+ const amount=Math.min(requested,Math.max(0,Number(x.amount||0)));if(amount<=0)return;
+ const account=cardAccountForDebt(x);let remaining=Math.max(0,Number(x.amount||0)-amount),paymentDebtId=x.id;
+ if(account){
+   const limit=Number(account.creditLimit||0)||0;
+   const currentAvailable=Number(account.balance||0)||0;
+   const newAvailable=Math.min(limit,currentAvailable+amount);
+   store.update('accounts',account.id,{balance:newAvailable,creditBalanceMode:'available',netWorth:false});
+   const real=(data.debts||[]).find(d=>String(d.linkedAccountId??'')===String(account.id)||String(d.id??'')===String(account.linkedDebtId??''));
+   if(real){paymentDebtId=real.id;store.update('debts',real.id,{amount:remaining,original:remaining,paid:0,paidAmount:0,due:addMonthsIso(String(real.due||nextDueIso(account.paymentDueDay)),1,account.paymentDueDay)});}
+ }else{
+   const paid=Number(x.paidAmount??x.paid??0)+amount;
+   store.update('debts',x.id,{paidAmount:paid,paid,amount:remaining,due:x.due?addMonthsIso(x.due,1,x.dueDay):x.due});
+ }
+ store.add('debtPayments',{debtId:paymentDebtId,amount,paidAt:new Date().toISOString(),remainingAfter:remaining,note:account?'Погасяване на кредитна карта':'Редовна вноска'});toast(account?'Плащането по кредитната карта е отчетено':'Вноската е отчетена');
+}
+function debtHistory(id){
+ const x=effectiveDebts().find(v=>String(v.id)===String(id)),items=(data.debtPayments||[]).filter(p=>String(p.debtId)===String(id)).sort((a,b)=>String(b.paidAt).localeCompare(String(a.paidAt)));
+ const d=qs('#formDialog');qs('#dialogTitle').textContent='История на вноските';qs('#formFields').innerHTML=`<div class="history-list"><h4>${esc(x?.name||'Задължение')}</h4>${items.map(p=>`<div class="history-row"><span>${esc(String(p.paidAt||'').slice(0,10))}</span><b>${money(p.amount)}</b><small>Остават ${money(p.remainingAfter)}</small></div>`).join('')||'<p class="muted">Няма записани вноски.</p>'}</div>`;qs('#entityForm').onsubmit=e=>{e.preventDefault();d.close()};d.showModal();
+}
+function planningPage(){
+ const v=qs('#view');v.innerHTML=`<div class="page">${pageHead('План','Бюджети, месечни плащания, битови сметки, вземания, цели и планирани приходи')}<div class="tabs" id="planTabs"></div><div id="planBody"></div></div>`;
+ const tabs=[['budgets','Бюджети'],['recurring','Месечни'],['bills','Битови'],['receivables','Дължат ми'],['goals','Цели'],['plannedIncome','Планирани приходи']];let active='budgets';
+ const drawTabs=()=>{qs('#planTabs').innerHTML=tabs.map(([id,l])=>`<button class="tab ${id===active?'active':''}" data-tab="${id}">${l}</button>`).join('');qs('#planTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{active=b.dataset.tab;drawTabs();drawPlan()})};
+ const drawPlan=()=>{
+   const arr=data[active]||[],body=qs('#planBody');
+   body.innerHTML=`<div class="section-toolbar">${active==='budgets'?'<button class="secondary" id="copyBudget">Копирай предния месец</button>':''}<button class="primary" id="planAdd">+ Добави</button></div><div class="cards-grid">${arr.map(x=>planCard(active,x)).join('')||'<div class="empty">Няма записи.</div>'}</div>`;
+   qs('#planAdd').onclick=()=>openPlanForm(active);const cb=qs('#copyBudget');if(cb)cb.onclick=()=>toast('Бюджетите са готови за копиране към избрания месец.');
+   body.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openPlanForm(active,b.dataset.edit));body.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>removeItem(active,b.dataset.del));
+   body.querySelectorAll('[data-paid]').forEach(b=>b.onclick=()=>{const x=data.bills.find(v=>v.id===b.dataset.paid);store.update('bills',x.id,{paid:!x.paid,lastPaidMonth:new Date().toISOString().slice(0,7)});toast(x.paid?'Плащането е отменено':'Сметката е платена')});
+   body.querySelectorAll('[data-goal-add]').forEach(b=>b.onclick=()=>goalContribution(b.dataset.goalAdd));
+   body.querySelectorAll('[data-recurring-toggle]').forEach(b=>b.onclick=()=>{const x=data.recurring.find(v=>v.id===b.dataset.recurringToggle);store.update('recurring',x.id,{active:x.active===false});toast('Статусът е променен')});
+   body.querySelectorAll('[data-receive]').forEach(b=>b.onclick=()=>receiveMoney(b.dataset.receive));
+ };
+ drawTabs();drawPlan();
+}
+function planCard(type,x){
+ let title=x.name||x.person||x.personName||'Запис',meta='',value='',extra='';
+ if(type==='budgets'){const spent=Number(x.spent||0),limit=Number(x.limit||x.amount||0),pct=Math.round(spent/Math.max(1,limit)*100);value=`${money(spent)} / ${money(limit)}`;meta=`Използвано ${pct}% · ${esc(x.month||x.monthKey||'текущ месец')}`}
+ if(type==='recurring'){value=money(x.amount);meta=`${esc(x.category||'Разход')} · падеж ${x.dueDay||1}-ти · ${x.active===false?'Пауза':'Активно'}`;extra=`<button data-recurring-toggle="${x.id}">${x.active===false?'▶ Активирай':'Ⅱ Пауза'}</button>`}
+ if(type==='bills'){value=money(x.amount);meta=`${esc(x.category||'Сметки')} · падеж ${x.dueDay||x.due||'—'} · ${x.paid?'Платена':'Неплатена'}`;extra=`<button data-paid="${x.id}">${x.paid?'↶ Отмени':'✓ Плати'}</button>`}
+ if(type==='receivables'){const received=Number(x.received||x.paidAmount||0),principal=Number(x.principal||0);value=money(Math.max(0,principal-received));meta=`Падеж: ${esc(x.due||x.dueDate||'—')} · лихва ${Number(x.interest||x.interestPercent||0).toFixed(2)}%`;extra=`<button data-receive="${x.id}">+ Получено</button>`}
+ if(type==='goals'){const saved=Number(x.saved||x.currentAmount||0),target=Number(x.target||x.targetAmount||0);value=`${money(saved)} / ${money(target)}`;meta=`Цел: ${esc(x.targetDate||'без дата')} · приоритет ${esc(x.priority||1)}`;extra=`<button data-goal-add="${x.id}">+ Внеси</button>`}
+ if(type==='plannedIncome'){value=money(x.amount);meta=`Очаква се: ${esc(x.date||x.dueDate||'—')} · ${esc(x.recurrence||'еднократно')}`}
+ return `<div class="mini-card"><div><h3>${esc(title)}</h3><p>${meta}</p></div><strong>${value}</strong><div class="card-actions">${extra}<button data-edit="${x.id}">✎</button><button data-del="${x.id}">🗑</button></div></div>`
+}
+const planSchemas={
+ budgets:[['name','Категория','text'],['spent','Изразходвано','number'],['limit','Лимит','number'],['month','Месец (YYYY-MM)','text']],
+ recurring:[['name','Име','text'],['amount','Сума','number'],['category','Категория','text'],['dueDay','Ден за падеж','number'],['active','Статус','select','true|Активно;false|Пауза'],['autoPay','Авто плащане','select','false|Не;true|Да'],['note','Бележка','text']],
+ bills:[['name','Сметка','text'],['amount','Сума','number'],['dueDay','Ден за падеж','number'],['category','Категория','text'],['paid','Платена','select','false|Не;true|Да'],['autoCreateTransaction','Автоматичен разход','select','false|Не;true|Да'],['note','Бележка','text']],
+ receivables:[['person','Човек','text'],['principal','Главница','number'],['received','Получено','number'],['interest','Лихва %','number'],['interestMode','Начисляване','select','once|Еднократно;daily|Дневно;monthly|Месечно;annual|Годишно'],['date','Дата','date'],['due','Падеж','date'],['note','Бележка','text']],
+ goals:[['name','Цел','text'],['target','Целева сума','number'],['saved','Спестено','number'],['targetDate','Целева дата','date'],['priority','Приоритет','number'],['archived','Архивирана','select','false|Не;true|Да'],['note','Бележка','text']],
+ plannedIncome:[['name','Приход','text'],['amount','Сума','number'],['date','Дата','date'],['recurrence','Повторение','select','once|Еднократно;monthly|Месечно;yearly|Годишно'],['category','Категория','text'],['active','Активен','select','true|Да;false|Не'],['note','Бележка','text']]
+};
+function openPlanForm(type,id){openForm(type,planSchemas[type],id)}
+function goalContribution(id){const x=data.goals.find(v=>v.id===id);if(!x)return;const amount=Number(prompt('Сума за внасяне към целта:','0')||0);if(!amount)return;const saved=Number(x.saved||x.currentAmount||0)+amount;store.update('goals',id,{saved,currentAmount:saved});toast('Сумата е добавена към целта')}
+function receiveMoney(id){const x=data.receivables.find(v=>v.id===id);if(!x)return;const amount=Number(prompt('Получена сума:','0')||0);if(!amount)return;const received=Number(x.received||x.paidAmount||0)+amount;store.update('receivables',id,{received,paidAmount:received,settled:received>=Number(x.principal||0)});toast('Получената сума е записана')}
+function calendarPage(){
+ const items=[];effectiveDebts().filter(x=>!x.archived).forEach(x=>items.push({date:x.due,title:x.name,type:'Кредит',amount:-x.monthly}));data.bills.filter(x=>!x.paid).forEach(x=>items.push({date:x.due,title:x.name,type:'Битова',amount:-x.amount}));data.receivables.forEach(x=>items.push({date:x.due,title:x.person,type:'Вземане',amount:Number(x.principal)-Number(x.received||0)}));data.goals.filter(x=>!x.archived).forEach(x=>items.push({date:x.targetDate,title:x.name,type:'Цел',amount:x.target}));data.plannedIncome.forEach(x=>items.push({date:x.date,title:x.name,type:'Приход',amount:x.amount}));items.sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+ qs('#view').innerHTML=`<div class="page">${pageHead('Финансов календар','Всички падежи и планирани събития на едно място')}<div class="timeline">${items.map(x=>`<div class="timeline-item"><div class="date-badge">${esc(x.date)}</div><div><b>${esc(x.title)}</b><span>${esc(x.type)}</span></div><strong class="${x.amount>=0?'income':'expense'}">${money(x.amount)}</strong></div>`).join('')}</div></div>`;
+}
+function statisticsPage(){
+ const income=data.transactions.filter(x=>x.amount>0).reduce((s,x)=>s+Number(x.amount),0),expense=-data.transactions.filter(x=>x.amount<0).reduce((s,x)=>s+Number(x.amount),0),net=data.accounts.filter(x=>x.type!=='creditCard'&&x.netWorth!==false).reduce((s,x)=>s+Number(x.balance),0),debt=effectiveDebts().filter(x=>!x.archived).reduce((s,x)=>s+Number(x.amount),0);
+ qs('#view').innerHTML=`<div class="page">${pageHead('Статистика','Финансов обзор и основни показатели')}<div class="stats-kpis"><div class="mini-card"><span>Приходи</span><strong class="income">${money(income)}</strong></div><div class="mini-card"><span>Разходи</span><strong class="expense">${money(expense)}</strong></div><div class="mini-card"><span>Нетно състояние</span><strong>${money(net)}</strong></div><div class="mini-card"><span>Оставащи кредити</span><strong>${money(debt)}</strong></div></div><div class="panel"><h3>6-месечна динамика</h3><canvas id="statsCanvas" width="1000" height="360"></canvas></div></div>`;drawChart();
+}
+function profilePage(){
+ const p=data.profile||{},u=auth.currentUser(),isAdmin=u?.role==='admin',st=store.status||{};const source=(p.name||u?.name||p.email||'FB').trim();const initials=source.split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();
+ qs('#view').innerHTML=`<div class="page profile-page">${pageHead('Профил','Лични данни, сигурност, план и синхронизация')}<div class="profile-grid">
+ <div class="profile-card"><div class="profile-avatar">${esc(initials||'FB')}</div><h2>${esc(p.name||u?.name||'FinanceBook потребител')}</h2><p>${esc(p.email||u?.email||'')}</p><div class="profile-chips"><span class="role-badge ${isAdmin?'admin':''}">${isAdmin?'Администратор':'Потребител'}</span><span class="role-badge">План: ${esc(p.plan||'free')}</span></div>${isAdmin?'<div class="admin-note">🛡 Защитен администраторски профил</div>':''}<button class="primary full-btn" id="editProfile">Редактирай личните данни</button></div>
+ <div class="profile-stack"><div class="panel profile-details"><h3>Лични данни</h3><div class="detail-row"><span>Име</span><b>${esc(p.name||u?.name||'—')}</b></div><div class="detail-row"><span>Имейл</span><b>${esc(p.email||u?.email||'—')}</b></div><div class="detail-row"><span>Телефон</span><b>${esc(p.phone||u?.phone||'Не е зададен')}</b></div><div class="detail-row"><span>Държава</span><b>${esc(p.country||u?.country||'Не е зададена')}</b></div><div class="detail-row"><span>Град</span><b>${esc(p.city||u?.city||'Не е зададен')}</b></div><div class="detail-row"><span>Език</span><b>${esc(p.language||'bg')}</b></div><div class="detail-row"><span>Валута</span><b>${esc(p.currency||'EUR')}</b></div></div>
+ <div class="panel profile-details"><h3>Синхронизация</h3><div class="detail-row"><span>Режим</span><b>${auth.isFirebase()?'Firebase / Firestore':'Локален'}</b></div><div class="detail-row"><span>Статус</span><b>${esc(st.message||'Готов')}</b></div><div class="detail-row"><span>UID</span><b class="uid-text">${esc(u?.id||'—')}</b></div><button class="primary" id="profileSyncBtn">Синхронизирай сега</button></div>
+ <div class="panel profile-details"><h3>Сигурност</h3><div class="security-actions"><button class="secondary" id="changeEmailBtn">Промяна на имейл</button><button class="secondary" id="changePasswordBtn">Смяна на парола</button><button class="secondary" id="logoutBtn">Изход</button></div></div>
+ <div class="panel profile-details ${isAdmin?'admin-protected':'danger-panel'}"><h3>${isAdmin?'Защита на администраторския профил':'Изтриване на профил'}</h3>${isAdmin?'<p class="muted">Този профил не може да бъде изтрит от сайта или приложението.</p>':'<p class="muted">Изтрива Firebase акаунта и свързаните облачни данни. Действието е необратимо.</p><button class="danger" id="deleteProfileBtn">Изтрий профила</button>'}</div></div></div></div>`;
+ qs('#editProfile').onclick=editProfile;qs('#logoutBtn').onclick=logoutProfile;qs('#changePasswordBtn').onclick=changePassword;qs('#changeEmailBtn').onclick=changeEmail;qs('#profileSyncBtn').onclick=async()=>{try{await store.syncNow();toast('Синхронизацията завърши')}catch(e){toast(e.message)}};if(!isAdmin)qs('#deleteProfileBtn').onclick=deleteProfile;
+}
+function editProfile(){const p=data.profile||{};const fields=[['name','Име','text'],['phone','Телефон','tel'],['country','Държава','text'],['city','Град','text'],['language','Език','text'],['currency','Валута','text']];showDialog('Лични данни',fields,p,async vals=>{try{await auth.updateProfile({name:vals.name,phone:vals.phone,country:vals.country,city:vals.city});store.setObject('profile',{...p,...vals,email:auth.currentUser()?.email||p.email});toast('Профилът е запазен')}catch(e){toast(e.message)}})}
+function changeEmail(){const fields=[['newEmail','Нов имейл','email'],['password','Текуща парола','password']];showDialog('Промяна на имейл',fields,{},async vals=>{try{await auth.changeEmail(vals.password,vals.newEmail);toast('Изпратен е линк за потвърждение на новия имейл.')}catch(e){toast(e.message)}})}
+function changePassword(){const fields=[['oldPassword','Текуща парола','password'],['newPassword','Нова парола','password'],['newPassword2','Повтори новата парола','password']];showDialog('Смяна на парола',fields,{},async vals=>{if(vals.newPassword!==vals.newPassword2)return toast('Новите пароли не съвпадат');try{await auth.changePassword(vals.oldPassword,vals.newPassword);toast('Паролата е сменена')}catch(e){toast(e.message)}})}
+async function deleteProfile(){const password=prompt('Въведи текущата парола за потвърждение:');if(password===null)return;if(!confirm('Профилът и свързаните облачни данни ще бъдат изтрити необратимо. Продължаваш ли?'))return;try{await auth.deleteCurrent(password,uid=>store.deleteCloudData(uid));store.clearSession();data=null;showAuth('login');toast('Профилът е изтрит')}catch(e){toast(e.message)}}
+async function logoutProfile(){await auth.logout();store.clearSession();data=null;showAuth('login')}
+function backupPage(){
+ const stg=data.settings||{};qs('#view').innerHTML=`<div class="page">${pageHead('Backup и данни','Архивиране, възстановяване и експортиране')}<div class="settings-grid"><div class="panel"><h3>JSON backup</h3><p>Пълно копие на данните.</p><button class="primary" id="exportJson">Изтегли backup</button></div><div class="panel"><h3>Възстановяване</h3><p>Възстанови данни от JSON архив.</p><input type="file" id="importJson" accept="application/json"><button class="primary" id="restoreBtn">Възстанови</button></div><div class="panel"><h3>CSV операции</h3><p>Експорт на операциите.</p><button class="primary" id="exportCsv">Изтегли CSV</button></div><div class="panel"><h3>Автоматичен offline backup</h3><label><input type="checkbox" id="autoBackup" ${stg.autoOfflineBackup!==false?'checked':''}> Автоматичен локален архив</label><label>Брой архиви<input type="number" id="backupRetention" min="1" max="50" value="${Number(stg.backupRetention||10)}"></label></div><div class="panel danger-panel"><h3>Нулиране</h3><p>Изчиства текущите локални данни. Облачните данни не се трият автоматично.</p><button class="danger" id="resetBtn">Нулирай локалните данни</button></div></div></div>`;
+ qs('#exportJson').onclick=exportJson;qs('#exportCsv').onclick=exportCsv;qs('#restoreBtn').onclick=restoreJson;qs('#resetBtn').onclick=()=>{if(confirm('Да се нулират ли локалните данни?')){store.reset();toast('Данните са нулирани')}};const saveBackup=()=>store.setObject('settings',{autoOfflineBackup:qs('#autoBackup').checked,backupRetention:Number(qs('#backupRetention').value||10)});qs('#autoBackup').onchange=saveBackup;qs('#backupRetention').onchange=saveBackup;
+}
+function settingsPage(){
+ const stg=data.settings||{},status=store.status||{},cloud=status.mode==='firestore',accounts=data.accounts||[];const styleNames=['Класически','Midnight Blue','Emerald','Royal Purple','Graphite','Ocean','Aurora','Copper','Nord','Indigo','Teal','Ruby','Amber','Slate','Cyber','Forest','Rose','Ice','Sunset','Monochrome'];
+ qs('#view').innerHTML=`<div class="page">${pageHead('Настройки и облик','Същите основни настройки като в приложението')}<div class="settings-grid">
+ <div class="panel"><h3>Език и основни</h3><label>Език<select id="settingsLang">${languageOptions(stg.languageCode||data.profile.language||'bg')}</select></label><label>Валута<select id="currencySel">${['EUR','BGN','USD','GBP','CHF','RON','HUF','PLN','CZK'].map(c=>`<option ${String(data.profile.currency||stg.currency||'EUR')===c?'selected':''}>${c}</option>`).join('')}</select></label><label>Тема<select id="themeSel"><option value="dark" ${stg.theme==='dark'?'selected':''}>Тъмна</option><option value="light" ${stg.theme==='light'?'selected':''}>Светла</option><option value="system" ${stg.theme==='system'?'selected':''}>Системна</option></select></label><label>Основна сметка<select id="defaultAccount"><option value="">Няма</option>${accounts.map(a=>`<option value="${a.id}" ${String(stg.defaultAccountId||'')===String(a.id)?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label></div>
+ <div class="panel"><h3>20 професионални облика</h3><div class="style-grid">${styleNames.map((n,i)=>`<button class="style-preset ${Number(stg.styleIndex||0)===i?'active':''}" data-style="${i}">${i+1}. ${n}</button>`).join('')}</div></div>
+ <div class="panel"><h3>Стъкло и фон</h3><label><input type="checkbox" id="glass" ${stg.glass!==false?'checked':''}> Стъклени менюта</label><label>Снимка за фон<input type="file" id="bgFile" accept="image/*"></label><button class="secondary" id="removeBg">Махни фона</button><label>Затъмняване <input type="range" id="bgDim" min="0" max="85" value="${Math.round(Number(stg.backgroundDim??55))}"></label><label>Прозрачност на панелите <input type="range" id="panelOpacity" min="35" max="100" value="${Math.round(Number(stg.panelOpacity??92))}"></label></div>
+ <div class="panel"><h3>Поверителност и удобство</h3><label><input type="checkbox" id="privacy" ${stg.privacy?'checked':''}> Privacy Shield</label><label><input type="checkbox" id="cents" ${stg.showCents!==false?'checked':''}> Показвай стотинки</label><label><input type="checkbox" id="compact" ${stg.compact?'checked':''}> Компактен режим</label><label><input type="checkbox" id="confirmDelete" ${stg.confirmDelete!==false?'checked':''}> Потвърждение преди изтриване</label><button class="secondary" id="privacyPageBtn">Политика за поверителност</button></div>
+ <div class="panel"><h3>Синхронизация</h3><p><b>${cloud?'Cloud Firestore':'Локален режим'}</b></p><p class="muted" id="syncSettingsStatus">${esc(status.message||'Проверка…')}</p><button class="primary" id="syncBtn" ${cloud?'':'disabled'}>Синхронизирай сега</button></div><div class="panel"><h3>FinanceBook Pro Web 2.2.1</h3><p class="muted">Пълна уеб версия по функционалните екрани на Android приложението.</p><button class="secondary" id="resetAppearance">Нулирай само облика</button></div></div></div>`;
+ const save=()=>{const patch={theme:qs('#themeSel').value,glass:qs('#glass').checked,compact:qs('#compact').checked,privacy:qs('#privacy').checked,showCents:qs('#cents').checked,confirmDelete:qs('#confirmDelete').checked,languageCode:qs('#settingsLang').value,currency:qs('#currencySel').value,defaultAccountId:qs('#defaultAccount').value||null,backgroundDim:Number(qs('#bgDim').value),panelOpacity:Number(qs('#panelOpacity').value)};store.setObject('settings',patch);store.setObject('profile',{language:patch.languageCode,currency:patch.currency})};['themeSel','glass','compact','privacy','cents','confirmDelete','settingsLang','currencySel','defaultAccount','bgDim','panelOpacity'].forEach(id=>qs('#'+id).onchange=save);
+ qs('#syncBtn').onclick=async()=>{try{await store.syncNow();toast('Синхронизацията завърши')}catch(e){toast(e.message)}};qs('#privacyPageBtn').onclick=()=>go('privacy');qs('#resetAppearance').onclick=()=>{store.setObject('settings',{theme:'dark',glass:true,compact:false,privacy:false,backgroundDim:55,panelOpacity:92,styleIndex:0});localStorage.removeItem('financebook-web-background');applyCustomBackground();toast('Обликът е нулиран')};qs('#removeBg').onclick=()=>{localStorage.removeItem('financebook-web-background');applyCustomBackground();toast('Фонът е премахнат')};qs('#bgFile').onchange=e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{localStorage.setItem('financebook-web-background',r.result);applyCustomBackground();toast('Фонът е сменен')}catch(_){toast('Снимката е твърде голяма за браузъра')}};r.readAsDataURL(f)};qs('#view').querySelectorAll('[data-style]').forEach(b=>b.onclick=()=>{store.setObject('settings',{styleIndex:Number(b.dataset.style)});toast('Обликът е избран')});
+}
+function privacyPage(){qs('#view').innerHTML=`<div class="page">${pageHead('Политика за поверителност','FinanceBook Pro')}<div class="panel legal-page"><h3>Данни</h3><p>FinanceBook Pro обработва финансовите данни, които потребителят въвежда, за да предоставя функциите на приложението.</p><h3>Съхранение и синхронизация</h3><p>При активен Firebase профил данните се синхронизират с Cloud Firestore под потребителския UID.</p><h3>Контрол</h3><p>Потребителят може да експортира архив, да редактира данните и да изтрие обикновения си профил. Защитеният администраторски профил не може да бъде изтрит от интерфейса.</p><button class="secondary" onclick="go('profile')">Към профила</button></div></div>`}
+function languageOptions(cur){const langs=[['bg','Български'],['en','English'],['de','Deutsch'],['it','Italiano'],['es','Español'],['fr','Français'],['ro','Română'],['el','Ελληνικά'],['nl','Nederlands'],['pl','Polski'],['pt','Português'],['cs','Čeština'],['sk','Slovenčina'],['hu','Magyar'],['hr','Hrvatski'],['sl','Slovenščina'],['sr','Srpski'],['da','Dansk'],['sv','Svenska'],['fi','Suomi'],['et','Eesti'],['lv','Latviešu'],['lt','Lietuvių']];return langs.map(([v,l])=>`<option value="${v}" ${cur===v?'selected':''}>${l}</option>`).join('')}
+function applyCustomBackground(){const bg=localStorage.getItem('financebook-web-background');if(bg){document.body.style.setProperty('--custom-bg',`url("${bg}")`);document.body.classList.add('has-custom-bg')}else{document.body.style.removeProperty('--custom-bg');document.body.classList.remove('has-custom-bg')}}
+function quickExpensesPage(){
+ const base=['Храна','Кафе','Гориво','Паркинг','Магазин','Аптека','Ресторант','Такси','Хотел','Пътни такси','Телефон','Интернет','Ток','Вода','Наем','Дете','Дрехи','Ремонт','Абонамент','Друго'];
+ const merchants=['Lidl','Kaufland','Billa','Fantastico','OMV','Shell','EKO','McDonalds','KFC','Glovo'];
+ const presets=[];base.forEach((c,ci)=>merchants.forEach((m,mi)=>presets.push({title:`${c} • ${m}`,category:c,amount:-([3,5,8,10,12,15,20,25,30,50][(ci+mi)%10])})));
+ const v=qs('#view');v.innerHTML=`<div class="page">${pageHead('200 готови разхода','Търси и добавяй разход с едно натискане')}<div class="panel quick-search"><input id="quickSearch" placeholder="Търси разход, категория или търговец…"><span id="quickCount">${presets.length} шаблона</span></div><div class="quick-grid" id="quickGrid"></div><div class="panel"><h3>Последни разходи</h3>${data.transactions.filter(x=>x.amount<0).slice(0,8).map(x=>row('↗',x.title,x.category,x.amount)).join('')||'<p class="muted">Няма разходи.</p>'}</div></div>`;
+ const draw=(q='')=>{const list=presets.filter(x=>(x.title+' '+x.category).toLowerCase().includes(q.toLowerCase()));qs('#quickCount').textContent=`${list.length} от ${presets.length}`;qs('#quickGrid').innerHTML=list.map((x,i)=>`<button class="quick-item" data-i="${presets.indexOf(x)}"><span>${esc(x.title)}</span><small>${esc(x.category)}</small><b>${money(x.amount)}</b></button>`).join('');qs('#quickGrid').querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{const x=presets[Number(b.dataset.i)];const raw=prompt(`Сума за "${x.title}"`,String(Math.abs(x.amount)));if(raw===null)return;const amt=-Math.abs(Number(raw||0));if(!amt)return;store.add('transactions',{title:x.title,payee:x.title.split('•')[1]?.trim()||'',category:x.category,amount:amt,date:new Date().toISOString().slice(0,10)});toast('Разходът е добавен')})};
+ qs('#quickSearch').oninput=e=>draw(e.target.value);draw();
+}
+function alertsPage(){
+ const today=new Date(),alerts=[];
+ (data.bills||[]).filter(x=>!x.paid).forEach(x=>{const d=new Date(x.due);const days=Math.ceil((d-today)/86400000);if(days<=7)alerts.push({level:days<0?'danger':'warn',title:x.name,text:days<0?`Просрочена с ${Math.abs(days)} дни`:`Падеж след ${days} дни`,amount:x.amount})});
+ effectiveDebts().filter(x=>!x.archived).forEach(x=>{const st=debtStatus(x);if(st.kind==='danger'||st.kind==='warn')alerts.push({level:st.kind,title:x.name,text:st.kind==='danger'?'Просрочено задължение':`Вноска след ${Math.max(0,st.days||0)} дни`,amount:x.monthly})});
+ (data.budgets||[]).forEach(b=>{const p=Number(b.spent||0)/Math.max(1,Number(b.limit||0));if(p>=.8)alerts.push({level:p>=1?'danger':'warn',title:'Бюджет: '+b.name,text:`Използвани ${Math.round(p*100)}%`,amount:b.limit-b.spent})});
+ qs('#view').innerHTML=`<div class="page">${pageHead('Финансови сигнали','Просрочия, падежи и бюджетни рискове')}<div class="cards-grid">${alerts.map(a=>`<div class="mini-card ${a.level}"><h3>${esc(a.title)}</h3><p>${esc(a.text)}</p><strong>${money(a.amount)}</strong></div>`).join('')||'<div class="empty">Няма активни сигнали.</div>'}</div></div>`;
+}
+function forecastPage(){
+ const income=(data.plannedIncome||[]).reduce((s,x)=>s+Number(x.amount||0),0);
+ const recurring=(data.recurring||[]).filter(x=>x.active!==false).reduce((s,x)=>s+Number(x.amount||0),0);
+ const bills=(data.bills||[]).filter(x=>!x.paid).reduce((s,x)=>s+Number(x.amount||0),0);
+ const debt=effectiveDebts().filter(x=>!x.archived).reduce((s,x)=>s+Number(x.monthly||0),0);
+ const balance=(data.accounts||[]).filter(x=>x.type!=='creditCard'&&x.netWorth!==false).reduce((s,x)=>s+Number(x.balance||0),0);
+ const net=income-recurring-bills-debt;
+ const months=[30,60,90];
+ qs('#view').innerHTML=`<div class="page">${pageHead('Прогноза на паричния поток','30 / 60 / 90 дни напред')}<div class="kpi-grid">${months.map((d,i)=>`<div class="kpi ${i===0?'blue':i===1?'purple':'green'}"><div class="label">След ${d} дни</div><div class="value">${money(balance+net*(i+1))}</div><div class="trend">Очаквана наличност</div></div>`).join('')}</div><div class="dashboard-grid"><div class="panel"><h3>Очаквани приходи</h3><div class="value">${money(income)}</div></div><div class="panel"><h3>Повтарящи разходи</h3><div class="value">${money(recurring+bills+debt)}</div></div><div class="panel"><h3>Нетен месечен поток</h3><div class="value ${net>=0?'income':'expense'}">${money(net)}</div></div></div></div>`;
+}
+function familyBudgetPage(){
+ if(!Array.isArray(data.familyMembers))data.familyMembers=[];
+ const v=qs('#view');v.innerHTML=`<div class="page">${pageHead('Семеен бюджет','Разходи и приходи по човек от домакинството','Член')}<div class="cards-grid">${data.familyMembers.map(m=>`<div class="mini-card"><h3>${esc(m.name)}</h3><p>${esc(m.role||'Член')}</p><strong>${money(m.amount||0)}</strong><div class="card-actions"><button data-edit="${m.id}">✎</button><button data-del="${m.id}">🗑</button></div></div>`).join('')||'<div class="empty">Няма добавени членове.</div>'}</div></div>`;
+ qs('#addBtn').onclick=()=>showDialog('Добави член',[['name','Име','text'],['role','Роля','text'],['amount','Месечен бюджет','number']],{},vals=>store.add('familyMembers',normalize(vals,[['amount','', 'number']])));
+ v.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>removeItem('familyMembers',b.dataset.del));v.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{const x=data.familyMembers.find(v=>v.id===b.dataset.edit);showDialog('Редактирай член',[['name','Име','text'],['role','Роля','text'],['amount','Месечен бюджет','number']],x,vals=>store.update('familyMembers',x.id,{...vals,amount:Number(vals.amount||0)}))});
+}
+function loanCalculatorPage(){
+ qs('#view').innerHTML=`<div class="page">${pageHead('Кредитен калкулатор','Ориентировъчна месечна вноска')}<div class="panel form-grid"><label><span>Сума</span><input id="loanAmount" type="number" value="10000"></label><label><span>Годишна лихва %</span><input id="loanRate" type="number" step="0.01" value="6"></label><label><span>Срок в месеци</span><input id="loanMonths" type="number" value="36"></label><button class="primary" id="calcLoan">Изчисли</button><div class="mini-card"><h3>Месечна вноска</h3><strong id="loanPayment">—</strong><p id="loanTotal"></p></div></div></div>`;
+ qs('#calcLoan').onclick=()=>{const P=Number(qs('#loanAmount').value||0),n=Number(qs('#loanMonths').value||1),r=Number(qs('#loanRate').value||0)/1200;const m=r?P*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1):P/n;qs('#loanPayment').textContent=money(m);qs('#loanTotal').textContent='Общо плащане: '+money(m*n)};
+}
+function insightsPage(){
+ const expenses=(data.transactions||[]).filter(x=>x.amount<0);const by={};expenses.forEach(x=>by[x.category]=(by[x.category]||0)+Math.abs(Number(x.amount)));const top=Object.entries(by).sort((a,b)=>b[1]-a[1])[0];const income=(data.transactions||[]).filter(x=>x.amount>0).reduce((s,x)=>s+Number(x.amount),0),out=expenses.reduce((s,x)=>s+Math.abs(Number(x.amount)),0),ratio=income?Math.round((income-out)/income*100):0;
+ qs('#view').innerHTML=`<div class="page">${pageHead('Умен финансов анализ','Автоматични изводи от текущите данни')}<div class="cards-grid"><div class="mini-card"><h3>Финансово здраве</h3><strong>${ratio>=20?'Добро':ratio>=0?'Стабилно':'Рисково'}</strong><p>Спестовен марж: ${ratio}%</p></div><div class="mini-card"><h3>Най-голяма категория разход</h3><strong>${esc(top?.[0]||'Няма данни')}</strong><p>${money(top?.[1]||0)}</p></div><div class="mini-card"><h3>Активни задължения</h3><strong>${effectiveDebts().filter(x=>!x.archived).length}</strong><p>Следи падежите в Сигнали</p></div><div class="mini-card"><h3>Препоръка</h3><p>${ratio<0?'Разходите са по-високи от приходите. Намали неприоритетните категории.':ratio<20?'Опитай да увеличиш месечния резерв над 20%.':'Поддържаш добър резерв. Продължи да следиш целите си.'}</p></div></div></div>`;
+}
+function reportsPage(){
+ const inc=(data.transactions||[]).filter(x=>x.amount>0).reduce((sum,x)=>sum+Number(x.amount),0),exp=(data.transactions||[]).filter(x=>x.amount<0).reduce((sum,x)=>sum+Math.abs(Number(x.amount)),0);
+ qs('#view').innerHTML=`<div class="page">${pageHead('Архиви и експорт','Backup, JSON, CSV и печат')}<div class="kpi-grid"><div class="kpi green"><div class="label">Приходи</div><div class="value">${money(inc)}</div></div><div class="kpi purple"><div class="label">Разходи</div><div class="value">${money(exp)}</div></div><div class="kpi blue"><div class="label">Баланс</div><div class="value">${money(inc-exp)}</div></div></div><div class="settings-grid"><div class="panel"><h3>Офлайн backup</h3><button class="primary" id="offlineBackupNow">Офлайн backup сега</button><p class="muted">Запазва моментна снимка в браузъра.</p></div><div class="panel"><h3>JSON</h3><button class="primary" id="reportJson">Експорт JSON</button></div><div class="panel"><h3>CSV за операции</h3><button class="primary" id="reportCsv">Експорт CSV</button></div><div class="panel"><h3>История CSV</h3><button class="primary" id="historyCsv">Експорт история CSV</button></div><div class="panel"><h3>Печат / PDF</h3><button class="secondary" id="printReport">Печат / Запази като PDF</button></div></div></div>`;
+ qs('#reportCsv').onclick=exportCsv;qs('#reportJson').onclick=exportJson;qs('#historyCsv').onclick=exportHistoryCsv;qs('#printReport').onclick=()=>window.print();qs('#offlineBackupNow').onclick=()=>{saveBrowserSnapshot();toast('Офлайн backup е създаден')};
+}
+function exportHistoryCsv(){const rows=[['Тип','Дата','Име','Категория','Сума'],...(data.transactions||[]).map(x=>['Операция',x.date,x.title,x.category,x.amount]),...(data.debtPayments||[]).map(x=>['Вноска',String(x.paidAt||'').slice(0,10),'Задължение','Вноска',x.amount]),...(data.monthClosures||[]).map(x=>['Приключване',x.month,'Месец','Резултат',x.result])];const csv='\ufeff'+rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\n');downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}),'financebook-history.csv')}
+function saveBrowserSnapshot(){const key='financebook-web-snapshots',items=JSON.parse(localStorage.getItem(key)||'[]');items.unshift({createdAt:new Date().toISOString(),data:JSON.parse(JSON.stringify(data))});const keep=Number(data.settings.backupRetention||10);localStorage.setItem(key,JSON.stringify(items.slice(0,Math.max(1,keep))))}
+function monthClosePage(){
+ const inc=(data.transactions||[]).filter(x=>x.amount>0).reduce((sum,x)=>sum+Number(x.amount),0),exp=(data.transactions||[]).filter(x=>x.amount<0).reduce((sum,x)=>sum+Math.abs(Number(x.amount)),0),history=data.monthClosures||[];
+ qs('#view').innerHTML=`<div class="page">${pageHead('Месечно приключване','Проверка, бележка и история на приключените месеци')}<div class="cards-grid"><div class="mini-card"><h3>Приходи</h3><strong>${money(inc)}</strong></div><div class="mini-card"><h3>Разходи</h3><strong>${money(exp)}</strong></div><div class="mini-card"><h3>Резултат</h3><strong>${money(inc-exp)}</strong></div><div class="mini-card"><h3>Неплатени сметки</h3><strong>${(data.bills||[]).filter(x=>!x.paid).length}</strong></div></div><div class="panel month-close-box"><label>Бележка (по желание)<textarea id="monthCloseNote" rows="3"></textarea></label><button class="primary" id="closeMonthBtn">✓ Приключи месеца</button></div><div class="panel"><h3>История</h3>${history.map(x=>`<div class="history-row"><span>${esc(x.month||'')}</span><b>${money(x.result)}</b><small>${esc(x.note||'')} · ${esc(String(x.closedAt||'').slice(0,16))}</small></div>`).join('')||'<p class="muted">Няма приключени месеци.</p>'}</div></div>`;
+ qs('#closeMonthBtn').onclick=()=>{const month=new Date().toISOString().slice(0,7);if(history.some(x=>x.month===month)&&!confirm('Този месец вече е приключван. Да се създаде нов запис?'))return;store.add('monthClosures',{month,income:inc,expenses:exp,result:inc-exp,note:qs('#monthCloseNote').value,closedAt:new Date().toISOString()});toast('Месецът е приключен')};
+}
+function diagnosticsPage(){
+ const st=store.status||{};const counts=['accounts','transactions','debts','budgets','bills','goals'].map(k=>`${k}: ${(data[k]||[]).length}`).join(' · ');qs('#view').innerHTML=`<div class="page">${pageHead('Диагностика','Проверка на данните и синхронизацията')}<div class="cards-grid"><div class="mini-card"><h3>Firebase</h3><strong>${auth.isFirebase()?'Свързан':'Локален режим'}</strong><p>${esc(st.message||'')}</p></div><div class="mini-card"><h3>Потребител</h3><strong>${esc(auth.currentUser()?.email||'—')}</strong><p>UID: ${esc(auth.currentUser()?.id||'—')}</p></div><div class="mini-card"><h3>Записи</h3><p>${esc(counts)}</p></div><div class="mini-card"><h3>Версия Web</h3><strong>2.2.1 Credit Limit Debt Fix</strong></div></div><div class="panel"><button class="primary" id="diagSync">Тествай синхронизация</button></div></div>`;qs('#diagSync').onclick=async()=>{try{await store.syncNow();toast('Синхронизацията работи')}catch(e){toast(e.message)}};
+}
+function languagePage(){const cur=data.profile.language||data.settings.languageCode||'bg';qs('#view').innerHTML=`<div class="page">${pageHead('Език','Език на интерфейса и профила')}<div class="panel"><label><span>Език</span><select id="langSelect">${languageOptions(cur)}</select></label><p class="muted">Избраният езиков код се пази в общия профил и е готов за синхронизация с Android приложението.</p></div></div>`;qs('#langSelect').onchange=e=>{store.setObject('profile',{language:e.target.value});store.setObject('settings',{languageCode:e.target.value});toast('Езикът е записан')}}
+
+function syncCreditCardDebt(account){
+ if(!account||account.type!=='creditCard')return;
+ const linked=(data.debts||[]).find(d=>String(d.linkedAccountId??'')===String(account.id)||String(account.linkedDebtId??'')===String(d.id))||(data.debts||[]).find(d=>String(d.debtType||'')==='creditCard'&&String(d.name||'').trim().toLowerCase()===String(account.name||'').trim().toLowerCase());
+ const amount=Math.max(0,(Number(account.creditLimit||0)||0)-(Number(account.balance||0)||0));
+ account.creditBalanceMode='available';account.netWorth=false;
+ const due=String(linked?.due||'').trim()||nextDueIso(account.paymentDueDay);
+ const patch={name:account.name,institution:account.bank||'',amount,original:amount,paid:0,paidAmount:0,monthly:Number(account.minimumPayment||0),apr:Number(account.creditInterestRate||0),dueDay:Number(account.paymentDueDay||15),due,debtType:'creditCard',linkedAccountId:account.id,archived:account.active===false,note:account.note||''};
+ if(linked){store.update('debts',linked.id,patch);if(String(account.linkedDebtId??'')!==String(linked.id))store.update('accounts',account.id,{linkedDebtId:linked.id});}
+ else{const debt=store.add('debts',{id:`card-debt-${account.id}`,...patch});store.update('accounts',account.id,{linkedDebtId:debt.id});}
+}
+function openEntityForm(type,id){openForm(type,schemas[type].fields,id)}
+function openForm(type,fields,id){const existing=id?(data[type]||[]).find(x=>String(x.id)===String(id)):{};showDialog(id?'Редактиране':'Добавяне',fields,existing,vals=>{const normalized=normalize(vals,fields);if(type==='debts'&&normalized.due){const parsed=parseLocalDateValue(normalized.due);if(parsed)normalized.dueDay=parsed.getDate()}const saved=id?store.update(type,id,normalized):store.add(type,normalized);if(type==='accounts'&&saved?.type==='creditCard')syncCreditCardDebt(saved);toast(id?'Промените са записани':'Записът е добавен')})}
+function openObjectForm(key,fields){showDialog('Редактиране на профил',fields,data[key]||{},vals=>{store.setObject(key,vals);toast('Профилът е обновен')})}
+function showDialog(title,fields,existing,onSave){const d=qs('#formDialog'),form=qs('#entityForm');qs('#dialogTitle').textContent=title;qs('#formFields').innerHTML=fields.map(([key,label,type,opts])=>{let input='';if(type==='select'){input=`<select name="${key}">${String(opts||'').split(';').filter(Boolean).map(o=>{const [v,l]=o.split('|');return `<option value="${esc(v)}" ${String(existing[key])===v?'selected':''}>${esc(l||v)}</option>`}).join('')}</select>`}else if(type==='accountSelect'){input=`<select name="${key}"><option value="">Без сметка</option>${(data.accounts||[]).map(a=>`<option value="${esc(a.id)}" ${String(existing[key]??'')===String(a.id)?'selected':''}>${esc(a.name)}${a.bank?' • '+esc(a.bank):''}</option>`).join('')}</select>`}else input=`<input name="${key}" type="${type}" value="${esc(existing[key]??'')}" ${type==='number'?'step="0.01"':''}>`;return `<label><span>${label}</span>${input}</label>`}).join('');form.onsubmit=e=>{e.preventDefault();const vals=Object.fromEntries(new FormData(form).entries());onSave(vals);d.close()};d.showModal()}
+function normalize(vals,fields){const out={...vals};fields.forEach(([k,,t])=>{if(t==='number')out[k]=Number(out[k]||0);if(t==='select'&&(out[k]==='true'||out[k]==='false'))out[k]=out[k]==='true'});return out}
+function removeItem(type,id){if(data.settings.confirmDelete!==false&&!confirm('Сигурен ли си, че искаш да изтриеш този запис?'))return;store.remove(type,id);toast('Записът е изтрит')}
+function exportJson(){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});downloadBlob(blob,`financebook-backup-${new Date().toISOString().slice(0,10)}.json`)}
+function exportCsv(){const rows=[['Дата','Име','Категория','Сума'],...data.transactions.map(x=>[x.date,x.title,x.category,x.amount])];const csv='\ufeff'+rows.map(r=>r.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\n');downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}),'financebook-operations.csv')}
+function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+async function restoreJson(){const f=qs('#importJson').files[0];if(!f)return toast('Избери JSON файл');try{const obj=JSON.parse(await f.text());store.replaceAll(obj);toast('Backup-ът е възстановен')}catch(e){toast('Невалиден backup файл')}}
+function drawChart(){const c=qs('#statsCanvas');if(!c)return;const ctx=c.getContext('2d'),w=c.width,h=c.height,vals=[31,55,42,70,61,88,76,100];ctx.clearRect(0,0,w,h);ctx.strokeStyle='#4a8cff';ctx.lineWidth=5;ctx.beginPath();vals.forEach((v,i)=>{const x=20+i*(w-40)/(vals.length-1),y=h-20-v*(h-50)/110;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();ctx.fillStyle='#7890a7';ctx.font='18px Segoe UI';ctx.fillText('Динамика на наличността',20,28)}
+qs('#profileBtn').onclick=e=>{e.stopPropagation();toggleProfileMenu()};document.addEventListener('click',e=>{if(!e.target.closest('.profile-menu')&&!e.target.closest('#profileBtn'))closeProfileMenu()});
+qs('#searchInput').addEventListener('input',e=>{searchTerm=e.target.value.trim().toLowerCase();if(['accounts','transactions','debts'].includes(current))render()});
+function toggleProfileMenu(){const m=qs('#profileMenu');if(!m)return;m.classList.toggle('hidden');renderProfileMenu()}
+function closeProfileMenu(){const m=qs('#profileMenu');if(m)m.classList.add('hidden')}
+function renderProfileMenu(){const m=qs('#profileMenu');if(!m)return;const u=auth.currentUser(),p=data?.profile||{};m.innerHTML=`<div class="profile-menu-head"><div class="avatar">${esc((p.name||u?.name||'П').charAt(0).toUpperCase())}</div><div><b>${esc(p.name||u?.name||'Профил')}</b><small>${esc(p.email||u?.email||'')}</small></div></div><button data-menu-go="profile">👤 Профил</button><button data-menu-go="settings">⚙ Настройки</button><button data-menu-go="backup">☁ Backup</button><button data-menu-go="diagnostics">↻ Синхронизация</button><hr><button id="menuLogout">⇥ Изход</button>`;m.querySelectorAll('[data-menu-go]').forEach(b=>b.onclick=()=>go(b.dataset.menuGo));const lo=qs('#menuLogout');if(lo)lo.onclick=logoutProfile}
+function showAuth(mode='login'){
+ const o=qs('#authOverlay');o.classList.remove('hidden');
+ const login=mode==='login';qs('#loginForm').classList.toggle('hidden',!login);qs('#registerForm').classList.toggle('hidden',login);qs('#loginTab').classList.toggle('active',login);qs('#registerTab').classList.toggle('active',!login);qs('#authError').textContent='';
+}
+function hideAuth(){qs('#authOverlay').classList.add('hidden')}
+async function activateCurrentUser(){const u=auth.currentUser();if(!u)return showAuth('login');data=await store.loadForUser(u);hideAuth();current='dashboard';nav();render()}
+qs('#loginTab').onclick=()=>showAuth('login');qs('#registerTab').onclick=()=>showAuth('register');
+qs('#forgotPasswordBtn').onclick=async()=>{const email=qs('#loginForm [name=email]').value.trim();if(!email){qs('#authError').textContent='Въведи имейла си и натисни отново.';return}try{await auth.resetPassword(email);qs('#authError').textContent='Изпратихме линк за нова парола на имейла.'}catch(e){qs('#authError').textContent=e.message}};
+qs('#loginForm').onsubmit=async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.currentTarget).entries());try{await auth.login(v.email,v.password);await activateCurrentUser();toast('Успешен вход')}catch(err){qs('#authError').textContent=err.message}};
+qs('#registerForm').onsubmit=async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.currentTarget).entries());if(v.password!==v.password2){qs('#authError').textContent='Паролите не съвпадат.';return}try{await auth.register(v);await activateCurrentUser();e.currentTarget.reset();toast('Профилът е създаден')}catch(err){qs('#authError').textContent=err.message}};
+store.onStatus(st=>{const el=qs('#syncText');if(el)el.textContent=st.message||'Синхронизация';const box=qs('#syncSettingsStatus');if(box)box.textContent=st.message||''});
+applyCustomBackground();nav();render();showAuth('login');store.init().then(d=>{if(d)data=d;const hint=qs('#authModeHint');if(hint)hint.textContent=auth.isFirebase()?'Firebase Authentication и Cloud Firestore са готови за един профил на сайта и приложението.':'Локален режим. Добави Web Firebase config в js/firebase-config.js.';store.onChange(d=>{if(d){data=d;render()}});if(auth.currentUser()){nav();render();hideAuth()}else showAuth('login')}).catch(e=>{console.error(e);nav();render();showAuth('login');qs('#authError').textContent='Firebase не се зареди. Сайтът остава достъпен локално. '+e.message});
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}
